@@ -24,7 +24,6 @@ export interface ResizableImageProps extends React.HTMLAttributes<HTMLDivElement
   showCaption?: boolean
   hasContent?: boolean
   onImageResize?: (width?: number) => void
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onUpdateAttributes?: (attrs: Record<string, any>) => void
   getPos: () => number | undefined
   nodeSize?: number

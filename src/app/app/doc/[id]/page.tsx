@@ -76,7 +76,7 @@ export default function DocPage() {
             title: doc.title,
             parentId: doc.parentId,
             icon: doc.icon,
-            tags: doc.tags,
+            tagIds: doc.tagIds,
             status: doc.status,
             ownerId: doc.ownerId,
             orgId: doc.orgId,

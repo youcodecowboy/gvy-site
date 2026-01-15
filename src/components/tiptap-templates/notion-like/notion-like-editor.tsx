@@ -292,10 +292,6 @@ export function EditorProvider(props: EditorProviderProps) {
         autocompletion: false,
         showDecorations: true,
         hideDecorationsOnStreamEnd: false,
-        // Use GPT-5 as the default model
-        textOptions: {
-          modelName: 'gpt-5',
-        },
         onLoading: (context) => {
           context.editor.commands.aiGenerationSetIsLoading(true)
           context.editor.commands.aiGenerationHasMessage(false)

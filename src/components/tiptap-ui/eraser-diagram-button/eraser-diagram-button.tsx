@@ -19,6 +19,10 @@ type IconComponent = ({ className, ...props }: IconProps) => React.ReactElement
 export interface EraserDiagramButtonProps
   extends Omit<ButtonProps, "type"> {
   /**
+   * Optional editor instance to use instead of the context editor.
+   */
+  editor?: any
+  /**
    * Optional text to display alongside the icon.
    */
   text?: string

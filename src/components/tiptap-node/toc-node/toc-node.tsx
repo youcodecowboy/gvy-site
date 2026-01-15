@@ -64,7 +64,6 @@ export function TocNodeComponent(props: NodeViewProps) {
     [navigateToHeading, topOffset]
   )
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { style: _, ...HTMLAttributes } = props.HTMLAttributes
 
   const wrapperProps = {

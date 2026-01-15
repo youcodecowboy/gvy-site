@@ -155,6 +155,7 @@ export const AvatarImage = forwardRef<HTMLImageElement, AvatarImageProps>(
         {...props}
         ref={ref}
         src={src}
+        alt=""
         className={`tiptap-avatar-image ${className}`}
       />
     )

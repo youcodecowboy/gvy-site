@@ -268,13 +268,6 @@ export default function FolderPage() {
     }
   }
 
-  const handleTagsChange = useCallback(async (newTags: string[]) => {
-    try {
-      await updateTags({ id: id as Id<'nodes'>, tags: newTags })
-    } catch (error) {
-      toast({ title: 'Failed to update tags', variant: 'error' })
-    }
-  }, [id, updateTags, toast])
 
   const handleDescriptionSave = useCallback(async (desc: string) => {
     try {
@@ -363,8 +356,8 @@ export default function FolderPage() {
             {/* Tags */}
             <div className="mt-2">
               <TagsInput
-                tags={folder.tags || []}
-                onChange={handleTagsChange}
+                tagIds={folder.tagIds || []}
+                onChange={(newTagIds) => updateTags({ id: id as Id<'nodes'>, tagIds: newTagIds })}
               />
             </div>
           </div>

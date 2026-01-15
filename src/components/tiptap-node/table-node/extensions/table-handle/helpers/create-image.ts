@@ -59,7 +59,6 @@ function copyComputedStyles(source: HTMLElement, target: HTMLElement) {
   for (const p of STYLE_PROPS) {
     const prop = String(p)
     const val = cs.getPropertyValue(toDash(prop))
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (val) (target.style as any)[prop] = val
   }
 

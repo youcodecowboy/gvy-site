@@ -12,7 +12,6 @@ import type * as comments from "../comments.js";
 import type * as dashboard from "../dashboard.js";
 import type * as files from "../files.js";
 import type * as mentions from "../mentions.js";
-import type * as migrations from "../migrations.js";
 import type * as nodes from "../nodes.js";
 import type * as tags from "../tags.js";
 
@@ -27,7 +26,6 @@ declare const fullApi: ApiFromModules<{
   dashboard: typeof dashboard;
   files: typeof files;
   mentions: typeof mentions;
-  migrations: typeof migrations;
   nodes: typeof nodes;
   tags: typeof tags;
 }>;
