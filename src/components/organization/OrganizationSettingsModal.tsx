@@ -1,6 +1,7 @@
 'use client'
 
 import { OrganizationProfile } from '@clerk/nextjs'
+import { X } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 
 interface OrganizationSettingsModalProps {
@@ -14,9 +15,18 @@ export function OrganizationSettingsModal({ isOpen, onClose }: OrganizationSetti
       isOpen={isOpen}
       onClose={onClose}
       showHeader={false}
-      size="xl"
+      size="3xl"
     >
-      <div className="clerk-org-profile-wrapper">
+      <div className="clerk-org-profile-wrapper relative">
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 z-10 p-2 rounded-md hover:bg-accent transition-colors"
+          aria-label="Close"
+        >
+          <X className="h-5 w-5 text-muted-foreground" />
+        </button>
+        
         <OrganizationProfile
           appearance={{
             elements: {

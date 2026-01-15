@@ -22,8 +22,11 @@ export default defineSchema({
     // Content (for docs only) - stores TipTap JSON
     content: v.optional(v.any()),
     
-    // Tags for docs and folders - array of tag IDs
+    // Tags for docs and folders - array of tag IDs (new system)
     tagIds: v.optional(v.array(v.id("tags"))),
+    
+    // Legacy tags field (string array) - kept for backward compatibility
+    tags: v.optional(v.array(v.string())),
     
     // Description/content for folders (TipTap JSON)
     description: v.optional(v.any()),
