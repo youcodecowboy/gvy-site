@@ -281,6 +281,8 @@ function TipTapEditorInner({
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null)
   const [threads, setThreads] = useState<any[]>([])
   const [threadPopoverPosition, setThreadPopoverPosition] = useState<{ top: number; left: number } | null>(null)
+  const [isSynced, setIsSynced] = useState(false)
+  const [isCloudEmpty, setIsCloudEmpty] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Create Yjs document
@@ -303,6 +305,17 @@ function TipTapEditorInner({
       document: ydoc,
       onAuthenticationFailed: ({ reason }) => {
         console.error('TipTap Cloud auth failed:', reason)
+      },
+      onSynced: () => {
+        console.log('TipTap Cloud synced')
+        setIsSynced(true)
+        // Check if the Yjs doc is empty after syncing with TipTap Cloud
+        const fragment = ydoc.getXmlFragment('default')
+        console.log('Yjs fragment length after sync:', fragment.length)
+        if (fragment.length === 0) {
+          console.log('TipTap Cloud doc is empty, will initialize with Convex content')
+          setIsCloudEmpty(true)
+        }
       },
     })
     
@@ -632,6 +645,18 @@ function TipTapEditorInner({
       }
     }
   }, [])
+
+  // Initialize editor with Convex content if TipTap Cloud doc is empty after sync
+  useEffect(() => {
+    if (isSynced && isCloudEmpty && editor && initialContent) {
+      console.log('Initializing editor with Convex content after empty cloud sync')
+      // Small delay to ensure editor is fully ready
+      setTimeout(() => {
+        editor.commands.setContent(initialContent)
+        setIsCloudEmpty(false) // Only do this once
+      }, 100)
+    }
+  }, [isSynced, isCloudEmpty, editor, initialContent])
 
   // All hooks must be before any early returns
   const handleAddComment = useCallback(async () => {
