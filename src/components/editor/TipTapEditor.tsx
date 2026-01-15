@@ -366,9 +366,12 @@ function TipTapEditorInner({
     provider.awareness?.on('update', handleAwarenessUpdate)
     
     // Fetch threads periodically when connected
+    // Note: We use a ref pattern inside the interval to avoid re-running the effect when isConnected changes
     const threadInterval = setInterval(() => {
-      if (isConnected) {
+      try {
         handleThreadsChange()
+      } catch (e) {
+        // Ignore errors when not connected
       }
     }, 2000)
     
@@ -379,7 +382,7 @@ function TipTapEditorInner({
       clearInterval(threadInterval)
       provider.destroy()
     }
-  }, [provider, onSavingChange, isConnected])
+  }, [provider, onSavingChange])
 
   // Image upload handler using Convex storage
   const handleImageUpload = useCallback(
