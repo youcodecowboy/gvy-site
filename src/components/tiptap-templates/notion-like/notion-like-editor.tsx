@@ -70,7 +70,7 @@ import { AiMenu } from "@/components/tiptap-ui/ai-menu"
 
 // --- Contexts ---
 import { AppProvider } from "@/contexts/app-context"
-import { UserProvider, useUser } from "@/contexts/user-context"
+import { UserProvider, useTiptapUser } from "@/contexts/user-context"
 import { CollabProvider, useCollab } from "@/contexts/collab-context"
 import { AiProvider, useAi } from "@/contexts/ai-context"
 
@@ -184,7 +184,7 @@ export function EditorContentArea() {
 export function EditorProvider(props: EditorProviderProps) {
   const { provider, ydoc, placeholder = "Start writing...", aiToken } = props
 
-  const { user } = useUser()
+  const { user } = useTiptapUser()
   const { setTocContent } = useToc()
 
   const editor = useEditor({
