@@ -284,6 +284,31 @@ function TipTapEditorInner({
   const [isSynced, setIsSynced] = useState(false)
   const [isCloudEmpty, setIsCloudEmpty] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // Use refs for values accessed in callbacks to prevent editor recreation
+  const docIdRef = useRef(docId)
+  const docTitleRef = useRef(docTitle)
+  const userRef = useRef(user)
+  const onSavingChangeRef = useRef(onSavingChange)
+  const updateContentRef = useRef(updateContent)
+  const createMentionsRef = useRef(createMentions)
+  
+  // Store initial content in a ref so it doesn't cause editor recreation
+  // Only use the first non-null value
+  const initialContentRef = useRef(initialContent)
+  if (initialContent && !initialContentRef.current) {
+    initialContentRef.current = initialContent
+  }
+  
+  // Keep refs in sync
+  useEffect(() => {
+    docIdRef.current = docId
+    docTitleRef.current = docTitle
+    userRef.current = user
+    onSavingChangeRef.current = onSavingChange
+    updateContentRef.current = updateContent
+    createMentionsRef.current = createMentions
+  }, [docId, docTitle, user, onSavingChange, updateContent, createMentions])
 
   // Create Yjs document
   const ydoc = useMemo(() => new YDoc(), [])
@@ -599,33 +624,34 @@ function TipTapEditorInner({
         },
       }),
     ],
-    // Always set initial content from Convex
+    // Always set initial content from Convex (using ref to prevent recreation)
     // When using collaboration, this becomes the starting point if the Yjs doc is empty
-    content: initialContent,
+    content: initialContentRef.current,
     onUpdate: ({ editor }) => {
       // Debounce saves to Convex
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current)
       }
       
-      onSavingChange?.(true)
+      onSavingChangeRef.current?.(true)
       saveTimeoutRef.current = setTimeout(async () => {
         try {
           const json = editor.getJSON()
-          console.log('Saving content to Convex...', docId)
-          await updateContent({ 
-            id: docId as Id<'nodes'>, 
+          const currentDocId = docIdRef.current
+          console.log('Saving content to Convex...', currentDocId)
+          await updateContentRef.current({ 
+            id: currentDocId as Id<'nodes'>, 
             content: json 
           })
           console.log('Content saved to Convex successfully')
           
           // Extract and save mentions
           try {
-            await createMentions({
-              docId: docId as Id<'nodes'>,
-              docTitle: docTitle || 'Untitled',
+            await createMentionsRef.current({
+              docId: currentDocId as Id<'nodes'>,
+              docTitle: docTitleRef.current || 'Untitled',
               content: json,
-              mentionedByUserName: user?.name || 'Unknown',
+              mentionedByUserName: userRef.current?.name || 'Unknown',
             })
           } catch (mentionError) {
             console.error('Failed to save mentions:', mentionError)
@@ -634,11 +660,11 @@ function TipTapEditorInner({
         } catch (error) {
           console.error('Failed to save content to Convex:', error)
         } finally {
-          onSavingChange?.(false)
+          onSavingChangeRef.current?.(false)
         }
-      }, 1500) // 1.5 second debounce
+      }, 3000) // 3 second debounce for better UX
     },
-  }, [aiToken, handleImageUpload, provider, ydoc, user, initialContent, docId, docTitle, updateContent, createMentions, onSavingChange])
+  }, [aiToken, handleImageUpload, provider, ydoc])
 
   // Cleanup save timeout on unmount
   useEffect(() => {
