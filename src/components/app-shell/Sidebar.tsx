@@ -299,8 +299,9 @@ export function Sidebar() {
           <CollapsedContent />
         ) : (
           <>
-            {/* User Profile Section */}
-            <div className="px-3 py-3">
+            {/* User Profile & Organization Switcher Section */}
+            <div className="px-3 py-3 space-y-3">
+              {/* User info */}
               <div className="flex items-center gap-3">
                 {user?.imageUrl ? (
                   <img 
@@ -321,6 +322,36 @@ export function Sidebar() {
                     {totalDocs} {totalDocs === 1 ? 'document' : 'documents'}
                   </p>
                 </div>
+              </div>
+              
+              {/* Organization Switcher */}
+              <div className="org-switcher-wrapper">
+                <OrganizationSwitcher
+                  hidePersonal={false}
+                  afterSelectOrganizationUrl="/app"
+                  afterCreateOrganizationUrl="/app"
+                  appearance={{
+                    elements: {
+                      rootBox: 'w-full',
+                      organizationSwitcherTrigger: 'w-full justify-between px-2 py-1.5 rounded-md border border-border bg-background hover:bg-accent text-sm',
+                      organizationSwitcherTriggerIcon: 'text-muted-foreground',
+                      organizationPreviewMainIdentifier: 'text-foreground text-sm',
+                      organizationPreviewSecondaryIdentifier: 'text-muted-foreground',
+                      organizationSwitcherPopoverCard: 'bg-background border border-border shadow-lg',
+                      organizationSwitcherPopoverActions: 'border-t border-border',
+                      organizationSwitcherPopoverActionButton: 'text-foreground hover:bg-accent',
+                      organizationSwitcherPopoverActionButtonIcon: 'text-muted-foreground',
+                      organizationPreviewAvatarBox: 'border-border',
+                    },
+                    variables: {
+                      colorPrimary: 'hsl(var(--primary))',
+                      colorBackground: 'hsl(var(--background))',
+                      colorText: 'hsl(var(--foreground))',
+                      colorTextSecondary: 'hsl(var(--muted-foreground))',
+                      borderRadius: '0.375rem',
+                    },
+                  }}
+                />
               </div>
             </div>
 
