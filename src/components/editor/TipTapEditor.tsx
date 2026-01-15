@@ -1,0 +1,905 @@
+'use client'
+
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
+import { useEditor, EditorContent, EditorContext } from '@tiptap/react'
+import { useMutation } from 'convex/react'
+import { TiptapCollabProvider } from '@tiptap-pro/provider'
+import { Doc as YDoc } from 'yjs'
+import { api } from '../../../convex/_generated/api'
+import type { Id } from '../../../convex/_generated/dataModel'
+
+// --- Tiptap Core Extensions ---
+import { StarterKit } from '@tiptap/starter-kit'
+import { Mention } from '@tiptap/extension-mention'
+import { TaskItem, TaskList } from '@tiptap/extension-list'
+import { TextAlign } from '@tiptap/extension-text-align'
+import { Typography } from '@tiptap/extension-typography'
+import { Highlight } from '@tiptap/extension-highlight'
+import { Subscript } from '@tiptap/extension-subscript'
+import { Superscript } from '@tiptap/extension-superscript'
+import { Selection, Placeholder } from '@tiptap/extensions'
+import { CharacterCount } from '@tiptap/extension-character-count'
+import { Color, TextStyle } from '@tiptap/extension-text-style'
+import { UniqueID } from '@tiptap/extension-unique-id'
+import { Emoji, gitHubEmojis } from '@tiptap/extension-emoji'
+import { Collaboration, isChangeOrigin } from '@tiptap/extension-collaboration'
+import { CollaborationCaret } from '@tiptap/extension-collaboration-caret'
+
+// --- TipTap Pro Extensions ---
+import { Ai } from '@tiptap-pro/extension-ai'
+import { CommentsKit } from '@tiptap-pro/extension-comments'
+
+// --- UI Primitives ---
+import { Spacer } from '@/components/tiptap-ui-primitive/spacer'
+import {
+  Toolbar,
+  ToolbarGroup,
+  ToolbarSeparator,
+} from '@/components/tiptap-ui-primitive/toolbar'
+
+// --- Tiptap Node Extensions ---
+import { ImageUploadNode } from '@/components/tiptap-node/image-upload-node/image-upload-node-extension'
+import { HorizontalRule } from '@/components/tiptap-node/horizontal-rule-node/horizontal-rule-node-extension'
+import { Image } from '@/components/tiptap-node/image-node/image-node-extension'
+import { NodeBackground } from '@/components/tiptap-extension/node-background-extension'
+import { NodeAlignment } from '@/components/tiptap-extension/node-alignment-extension'
+import { UiState } from '@/components/tiptap-extension/ui-state-extension'
+import { ListNormalizationExtension } from '@/components/tiptap-extension/list-normalization-extension'
+
+// --- Table Node ---
+import { TableKit } from '@/components/tiptap-node/table-node/extensions/table-node-extension'
+import { TableHandleExtension } from '@/components/tiptap-node/table-node/extensions/table-handle'
+import { TableHandle } from '@/components/tiptap-node/table-node/ui/table-handle/table-handle'
+import { TableSelectionOverlay } from '@/components/tiptap-node/table-node/ui/table-selection-overlay'
+import { TableCellHandleMenu } from '@/components/tiptap-node/table-node/ui/table-cell-handle-menu'
+import { TableExtendRowColumnButtons } from '@/components/tiptap-node/table-node/ui/table-extend-row-column-button'
+
+// --- Tiptap UI Components ---
+import { HeadingDropdownMenu } from '@/components/tiptap-ui/heading-dropdown-menu'
+import { ImageUploadButton } from '@/components/tiptap-ui/image-upload-button'
+import { ListDropdownMenu } from '@/components/tiptap-ui/list-dropdown-menu'
+import { BlockquoteButton } from '@/components/tiptap-ui/blockquote-button'
+import { CodeBlockButton } from '@/components/tiptap-ui/code-block-button'
+import { ColorHighlightPopover } from '@/components/tiptap-ui/color-highlight-popover'
+import { LinkPopover } from '@/components/tiptap-ui/link-popover'
+import { MarkButton } from '@/components/tiptap-ui/mark-button'
+import { TextAlignButton } from '@/components/tiptap-ui/text-align-button'
+import { UndoRedoButton } from '@/components/tiptap-ui/undo-redo-button'
+import { MessageSquare, X } from 'lucide-react'
+import { ThreadPopover } from '@/components/tiptap-ui/thread-popover/thread-popover'
+
+// --- Notion-like UI Components ---
+import { EmojiDropdownMenu } from '@/components/tiptap-ui/emoji-dropdown-menu'
+import { MentionDropdownMenu } from '@/components/tiptap-ui/mention-dropdown-menu'
+import { SlashDropdownMenu } from '@/components/tiptap-ui/slash-dropdown-menu'
+import { DragContextMenu } from '@/components/tiptap-ui/drag-context-menu'
+import { AiMenu } from '@/components/tiptap-ui/ai-menu'
+
+// --- Floating Toolbar ---
+import { NotionToolbarFloating } from '@/components/tiptap-templates/notion-like/notion-like-editor-toolbar-floating'
+
+// --- Contexts ---
+import { UserProvider, useTiptapUser } from '@/contexts/user-context'
+
+// --- Hooks ---
+import { useIsBreakpoint } from '@/hooks/use-is-breakpoint'
+
+// --- Lib ---
+import { MAX_FILE_SIZE } from '@/lib/tiptap-utils'
+import { 
+  fetchAiToken, 
+  fetchCollabToken,
+  TIPTAP_AI_APP_ID,
+  TIPTAP_COLLAB_APP_ID,
+  TIPTAP_COLLAB_DOC_PREFIX,
+} from '@/lib/tiptap-collab-utils'
+
+// --- Node Styles ---
+import '@/components/tiptap-node/blockquote-node/blockquote-node.scss'
+import '@/components/tiptap-node/code-block-node/code-block-node.scss'
+import '@/components/tiptap-node/horizontal-rule-node/horizontal-rule-node.scss'
+import '@/components/tiptap-node/list-node/list-node.scss'
+import '@/components/tiptap-node/image-node/image-node.scss'
+import '@/components/tiptap-node/heading-node/heading-node.scss'
+import '@/components/tiptap-node/paragraph-node/paragraph-node.scss'
+import '@/components/tiptap-node/table-node/styles/prosemirror-table.scss'
+import '@/components/tiptap-node/table-node/styles/table-node.scss'
+
+// --- Template Styles ---
+import '@/components/tiptap-templates/notion-like/notion-like-editor.scss'
+import '@/components/editor/comments.scss'
+
+interface TipTapEditorProps {
+  docId: string
+  docTitle: string
+  content: any
+  onSavingChange?: (isSaving: boolean) => void
+}
+
+interface CollaboratorInfo {
+  clientId: number
+  user: {
+    id: string
+    name: string
+    color: string
+    avatar?: string
+  }
+}
+
+// Main Toolbar Content Component
+function MainToolbarContent({ 
+  isMobile,
+  showComments,
+  onToggleComments,
+  commentCount = 0,
+  hasProvider = false,
+}: { 
+  isMobile: boolean
+  showComments?: boolean
+  onToggleComments?: () => void
+  commentCount?: number
+  hasProvider?: boolean
+}) {
+  return (
+    <>
+      <ToolbarGroup>
+        <UndoRedoButton action="undo" />
+        <UndoRedoButton action="redo" />
+      </ToolbarGroup>
+
+      <ToolbarSeparator />
+
+      <ToolbarGroup>
+        <HeadingDropdownMenu levels={[1, 2, 3]} portal={isMobile} />
+        <ListDropdownMenu
+          types={['bulletList', 'orderedList', 'taskList']}
+          portal={isMobile}
+        />
+        <BlockquoteButton />
+        <CodeBlockButton />
+      </ToolbarGroup>
+
+      <ToolbarSeparator />
+
+      <ToolbarGroup>
+        <MarkButton type="bold" />
+        <MarkButton type="italic" />
+        <MarkButton type="underline" />
+        <MarkButton type="strike" />
+        <MarkButton type="code" />
+        <ColorHighlightPopover />
+        <LinkPopover />
+      </ToolbarGroup>
+
+      <ToolbarSeparator />
+
+      <ToolbarGroup>
+        <MarkButton type="superscript" />
+        <MarkButton type="subscript" />
+      </ToolbarGroup>
+
+      <ToolbarSeparator />
+
+      <ToolbarGroup>
+        <TextAlignButton align="left" />
+        <TextAlignButton align="center" />
+        <TextAlignButton align="right" />
+        <TextAlignButton align="justify" />
+      </ToolbarGroup>
+
+      <ToolbarSeparator />
+
+      <ToolbarGroup>
+        <ImageUploadButton text="Image" />
+      </ToolbarGroup>
+
+      {hasProvider && onToggleComments && (
+        <>
+          <ToolbarSeparator />
+          <ToolbarGroup>
+            <button
+              onClick={onToggleComments}
+              className={`
+                flex items-center gap-1.5 px-2 py-1 rounded text-sm transition-colors
+                ${showComments 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'hover:bg-accent text-muted-foreground hover:text-foreground'
+                }
+              `}
+              title="Toggle comments"
+            >
+              <MessageSquare className="h-4 w-4" />
+              {commentCount > 0 && (
+                <span className="text-xs">{commentCount}</span>
+              )}
+            </button>
+          </ToolbarGroup>
+        </>
+      )}
+
+      <Spacer />
+    </>
+  )
+}
+
+// Collaborators display component
+function CollaboratorsDisplay({ collaborators }: { collaborators: CollaboratorInfo[] }) {
+  if (collaborators.length === 0) return null
+  
+  return (
+    <div className="flex items-center gap-1">
+      {collaborators.slice(0, 5).map((collab) => (
+        <div
+          key={collab.clientId}
+          className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium text-white"
+          style={{ backgroundColor: collab.user.color }}
+          title={collab.user.name}
+        >
+          {collab.user.avatar ? (
+            <img 
+              src={collab.user.avatar} 
+              alt={collab.user.name}
+              className="w-full h-full rounded-full object-cover"
+            />
+          ) : (
+            collab.user.name.charAt(0).toUpperCase()
+          )}
+        </div>
+      ))}
+      {collaborators.length > 5 && (
+        <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs">
+          +{collaborators.length - 5}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Inner editor component with collaboration
+function TipTapEditorInner({ 
+  docId,
+  docTitle,
+  content: initialContent,
+  onSavingChange,
+  aiToken,
+  collabToken,
+}: TipTapEditorProps & { 
+  aiToken: string | null
+  collabToken: string | null
+}) {
+  const generateUploadUrl = useMutation(api.files.generateUploadUrl)
+  const getFileUrl = useMutation(api.files.getFileUrl)
+  const updateContent = useMutation(api.nodes.updateContent)
+  const createMentions = useMutation(api.mentions.createMentions)
+  const createComment = useMutation(api.comments.createComment)
+  const isMobile = useIsBreakpoint()
+  const toolbarRef = useRef<HTMLDivElement>(null)
+  const { user } = useTiptapUser()
+  const [collaborators, setCollaborators] = useState<CollaboratorInfo[]>([])
+  const [isConnected, setIsConnected] = useState(false)
+  const [showComments, setShowComments] = useState(false)
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null)
+  const [threads, setThreads] = useState<any[]>([])
+  const [threadPopoverPosition, setThreadPopoverPosition] = useState<{ top: number; left: number } | null>(null)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Create Yjs document
+  const ydoc = useMemo(() => new YDoc(), [])
+  
+  // Create collaboration provider
+  const provider = useMemo(() => {
+    if (!collabToken || !TIPTAP_COLLAB_APP_ID) {
+      console.log('Collaboration disabled - no token or app ID')
+      return null
+    }
+    
+    const documentName = `${TIPTAP_COLLAB_DOC_PREFIX}${docId}`
+    console.log('Creating collaboration provider for:', documentName)
+    
+    const newProvider = new TiptapCollabProvider({
+      name: documentName,
+      appId: TIPTAP_COLLAB_APP_ID,
+      token: collabToken,
+      document: ydoc,
+      onAuthenticationFailed: ({ reason }) => {
+        console.error('TipTap Cloud auth failed:', reason)
+      },
+    })
+    
+    return newProvider
+  }, [collabToken, docId, ydoc])
+
+
+  // Handle provider events
+  useEffect(() => {
+    if (!provider) return
+
+    const handleConnect = () => {
+      setIsConnected(true)
+      onSavingChange?.(false)
+    }
+    
+    const handleDisconnect = () => {
+      setIsConnected(false)
+    }
+
+    const handleAwarenessUpdate = () => {
+      const states = provider.awareness?.getStates()
+      if (!states) return
+      
+      const users: CollaboratorInfo[] = []
+      states.forEach((state, clientId) => {
+        if (state.user && clientId !== provider.awareness?.clientID) {
+          users.push({
+            clientId,
+            user: state.user,
+          })
+        }
+      })
+      setCollaborators(users)
+    }
+    
+    const handleThreadsChange = () => {
+      try {
+        const allThreads = provider.getThreads()
+        setThreads(allThreads || [])
+      } catch (e) {
+        // Threads may not be available yet
+      }
+    }
+    
+    provider.on('connect', handleConnect)
+    provider.on('disconnect', handleDisconnect)
+    provider.awareness?.on('update', handleAwarenessUpdate)
+    
+    // Fetch threads periodically when connected
+    const threadInterval = setInterval(() => {
+      if (isConnected) {
+        handleThreadsChange()
+      }
+    }, 2000)
+    
+    return () => {
+      provider.off('connect', handleConnect)
+      provider.off('disconnect', handleDisconnect)
+      provider.awareness?.off('update', handleAwarenessUpdate)
+      clearInterval(threadInterval)
+      provider.destroy()
+    }
+  }, [provider, onSavingChange, isConnected])
+
+  // Image upload handler using Convex storage
+  const handleImageUpload = useCallback(
+    async (
+      file: File,
+      onProgress?: (event: { progress: number }) => void,
+      abortSignal?: AbortSignal
+    ): Promise<string> => {
+      if (!file) {
+        throw new Error('No file provided')
+      }
+
+      if (file.size > MAX_FILE_SIZE) {
+        throw new Error(
+          `File size exceeds maximum allowed (${MAX_FILE_SIZE / (1024 * 1024)}MB)`
+        )
+      }
+
+      try {
+        onProgress?.({ progress: 10 })
+        const uploadUrl = await generateUploadUrl()
+        
+        if (abortSignal?.aborted) {
+          throw new Error('Upload cancelled')
+        }
+
+        onProgress?.({ progress: 30 })
+        const result = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': file.type },
+          body: file,
+          signal: abortSignal,
+        })
+
+        if (!result.ok) {
+          throw new Error('Failed to upload file')
+        }
+
+        onProgress?.({ progress: 70 })
+        const { storageId } = await result.json()
+
+        onProgress?.({ progress: 90 })
+        const imageUrl = await getFileUrl({ storageId })
+        
+        if (!imageUrl) {
+          throw new Error('Failed to get image URL')
+        }
+        
+        onProgress?.({ progress: 100 })
+        return imageUrl
+      } catch (error) {
+        if (abortSignal?.aborted) {
+          throw new Error('Upload cancelled')
+        }
+        throw error
+      }
+    },
+    [generateUploadUrl, getFileUrl]
+  )
+
+  const editor = useEditor({
+    immediatelyRender: false,
+    editorProps: {
+      attributes: {
+        autocomplete: 'off',
+        autocorrect: 'off',
+        autocapitalize: 'off',
+        'aria-label': 'Document editor',
+        class: 'notion-like-editor',
+      },
+    },
+    extensions: [
+      StarterKit.configure({
+        heading: {
+          levels: [1, 2, 3],
+        },
+        horizontalRule: false,
+        dropcursor: {
+          width: 2,
+        },
+        link: {
+          openOnClick: false,
+        },
+        // Disable history when using collaboration
+        undoRedo: provider ? false : undefined,
+      }),
+      Placeholder.configure({
+        placeholder: "Type '/' for commands...",
+        emptyNodeClass: 'is-empty with-slash',
+      }),
+      HorizontalRule,
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      TaskList,
+      TaskItem.configure({ nested: true }),
+      Highlight.configure({ multicolor: true }),
+      Image,
+      Typography,
+      Superscript,
+      Subscript,
+      Selection,
+      CharacterCount.configure({
+        limit: null,
+      }),
+      TextStyle,
+      Color,
+      Mention,
+      Emoji.configure({
+        emojis: gitHubEmojis.filter(
+          (emoji) => !emoji.name.includes('regional')
+        ),
+        forceFallbackImages: true,
+      }),
+      TableKit.configure({
+        table: {
+          resizable: true,
+          cellMinWidth: 120,
+        },
+      }),
+      TableHandleExtension,
+      NodeBackground.configure({
+        types: [
+          'paragraph',
+          'heading',
+          'blockquote',
+          'taskList',
+          'bulletList',
+          'orderedList',
+          'tableCell',
+          'tableHeader',
+        ],
+      }),
+      NodeAlignment,
+      UiState,
+      ListNormalizationExtension,
+      UniqueID.configure({
+        types: [
+          'table',
+          'paragraph',
+          'bulletList',
+          'orderedList',
+          'taskList',
+          'heading',
+          'blockquote',
+          'codeBlock',
+        ],
+        filterTransaction: (transaction) => !isChangeOrigin(transaction),
+      }),
+      ImageUploadNode.configure({
+        accept: 'image/*',
+        maxSize: MAX_FILE_SIZE,
+        limit: 3,
+        upload: handleImageUpload,
+        onError: (error) => console.error('Upload failed:', error),
+      }),
+      // Collaboration extensions
+      ...(provider ? [
+        Collaboration.configure({
+          document: ydoc,
+        }),
+        CollaborationCaret.configure({
+          provider,
+          user: {
+            id: user.id,
+            name: user.name,
+            color: user.color,
+          },
+        }),
+        CommentsKit.configure({
+          provider,
+          onClickThread: (threadId) => {
+            if (threadId) {
+              setSelectedThreadId(threadId)
+              // Position will be set by clicking in sidebar or via selection
+              // For now, use a delayed approach to let the DOM settle
+              setTimeout(() => {
+                const selection = window.getSelection()
+                if (selection && selection.rangeCount > 0) {
+                  const range = selection.getRangeAt(0)
+                  const rect = range.getBoundingClientRect()
+                  if (rect.width > 0 || rect.height > 0) {
+                    setThreadPopoverPosition({
+                      top: rect.bottom + 8,
+                      left: Math.max(rect.left, 16),
+                    })
+                  }
+                }
+              }, 50)
+            } else {
+              setSelectedThreadId(null)
+              setThreadPopoverPosition(null)
+            }
+          },
+        }),
+      ] : []),
+      // AI Extension - using GPT-5
+      Ai.configure({
+        appId: TIPTAP_AI_APP_ID,
+        token: aiToken || undefined,
+        autocompletion: false,
+        showDecorations: true,
+        hideDecorationsOnStreamEnd: false,
+        // Use GPT-5 as the default model
+        textOptions: {
+          modelName: 'gpt-5',
+        },
+        onLoading: (context) => {
+          context.editor.commands.aiGenerationSetIsLoading(true)
+          context.editor.commands.aiGenerationHasMessage(false)
+        },
+        onChunk: (context) => {
+          context.editor.commands.aiGenerationSetIsLoading(true)
+          context.editor.commands.aiGenerationHasMessage(true)
+        },
+        onSuccess: (context) => {
+          const hasMessage = !!context.response
+          context.editor.commands.aiGenerationSetIsLoading(false)
+          context.editor.commands.aiGenerationHasMessage(hasMessage)
+        },
+      }),
+    ],
+    // Always set initial content from Convex
+    // When using collaboration, this becomes the starting point if the Yjs doc is empty
+    content: initialContent,
+    onUpdate: ({ editor }) => {
+      // Debounce saves to Convex
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+      
+      onSavingChange?.(true)
+      saveTimeoutRef.current = setTimeout(async () => {
+        try {
+          const json = editor.getJSON()
+          console.log('Saving content to Convex...', docId)
+          await updateContent({ 
+            id: docId as Id<'nodes'>, 
+            content: json 
+          })
+          console.log('Content saved to Convex successfully')
+          
+          // Extract and save mentions
+          try {
+            await createMentions({
+              docId: docId as Id<'nodes'>,
+              docTitle: docTitle || 'Untitled',
+              content: json,
+              mentionedByUserName: user?.name || 'Unknown',
+            })
+          } catch (mentionError) {
+            console.error('Failed to save mentions:', mentionError)
+            // Don't fail the save if mentions fail
+          }
+        } catch (error) {
+          console.error('Failed to save content to Convex:', error)
+        } finally {
+          onSavingChange?.(false)
+        }
+      }, 1500) // 1.5 second debounce
+    },
+  }, [aiToken, handleImageUpload, provider, ydoc, user, initialContent, docId, docTitle, updateContent, createMentions, onSavingChange])
+
+  // Cleanup save timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  // All hooks must be before any early returns
+  const handleAddComment = useCallback(async () => {
+    if (!editor) return
+    
+    const { from, to } = editor.state.selection
+    if (from === to) {
+      // No selection, can't add comment
+      return
+    }
+    
+    const commentContent = `Comment by ${user?.name || 'Unknown'}`
+    editor.commands.setThread({
+      content: commentContent,
+      data: {
+        authorId: user?.id || '',
+        authorName: user?.name || 'Unknown',
+        authorColor: user?.color || '#888',
+      },
+    })
+    setShowComments(true)
+
+    // Save comment to Convex for dashboard display
+    try {
+      await createComment({
+        docId: docId as Id<'nodes'>,
+        docTitle: docTitle || 'Untitled',
+        content: commentContent,
+        authorName: user?.name || 'Unknown',
+      })
+    } catch (error) {
+      console.error('Failed to save comment to Convex:', error)
+    }
+  }, [editor, user, docId, docTitle, createComment])
+
+  if (!editor) {
+    return (
+      <div className="min-h-[300px] animate-pulse">
+        <div className="h-10 bg-muted rounded mb-4" />
+        <div className="h-6 bg-muted rounded w-3/4 mb-4" />
+        <div className="h-4 bg-muted rounded w-full mb-2" />
+        <div className="h-4 bg-muted rounded w-5/6 mb-2" />
+        <div className="h-4 bg-muted rounded w-4/6" />
+      </div>
+    )
+  }
+
+  const characterCount = editor.storage.characterCount
+  const characters = characterCount?.characters?.() ?? 0
+  const words = characterCount?.words?.() ?? 0
+
+  const unresolvedThreads = threads.filter((t: any) => !t.resolvedAt)
+
+  return (
+    <div className="notion-like-editor-wrapper flex">
+      <div className={`flex-1 ${showComments ? 'mr-80' : ''} transition-all duration-200`}>
+        <EditorContext.Provider value={{ editor }}>
+          {/* Fixed Toolbar */}
+          <Toolbar ref={toolbarRef} className="mb-4 sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <MainToolbarContent 
+              isMobile={isMobile}
+              showComments={showComments}
+              onToggleComments={() => setShowComments(!showComments)}
+              commentCount={unresolvedThreads.length}
+              hasProvider={!!provider}
+            />
+            
+            {/* Collaborators */}
+            <CollaboratorsDisplay collaborators={collaborators} />
+            
+            {/* Connection status */}
+            {provider && (
+              <div className={`ml-2 w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-yellow-500'}`} 
+                title={isConnected ? 'Connected' : 'Connecting...'} 
+              />
+            )}
+          </Toolbar>
+
+          {/* Editor Content with Notion-like UI */}
+          <EditorContent
+            editor={editor}
+            className="notion-like-editor-content"
+          >
+            <DragContextMenu />
+            <AiMenu />
+            <EmojiDropdownMenu />
+            <MentionDropdownMenu />
+            <SlashDropdownMenu />
+            <NotionToolbarFloating />
+          </EditorContent>
+
+          {/* Table UI */}
+          <TableExtendRowColumnButtons />
+          <TableHandle />
+          <TableSelectionOverlay
+            showResizeHandles={true}
+            cellMenu={(props) => (
+              <TableCellHandleMenu
+                editor={props.editor}
+                onMouseDown={(e) => props.onResizeStart?.('br')(e)}
+              />
+            )}
+          />
+
+          {/* Character Count */}
+          <div className="mt-4 pt-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
+            <div className="flex items-center gap-4">
+              <span>{characters} characters</span>
+              <span>{words} words</span>
+            </div>
+          </div>
+        </EditorContext.Provider>
+      </div>
+
+      {/* Comments Panel */}
+      {showComments && provider && (
+        <div className="fixed right-0 top-0 h-full w-80 border-l border-border bg-background shadow-lg z-50 flex flex-col">
+          <div className="flex items-center justify-between p-4 border-b">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" />
+              <span className="font-medium">Comments</span>
+              <span className="text-xs text-muted-foreground">({unresolvedThreads.length})</span>
+            </div>
+            <button
+              onClick={() => setShowComments(false)}
+              className="p-1 rounded hover:bg-accent transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-4">
+            {threads.length === 0 ? (
+              <div className="text-center py-8">
+                <MessageSquare className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">No comments yet</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Select text and use the floating toolbar to add a comment
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {threads.map((thread: any) => (
+                  <div 
+                    key={thread.id}
+                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                      thread.resolvedAt ? 'bg-muted/50 opacity-60' : 'bg-card hover:bg-accent/50'
+                    } ${selectedThreadId === thread.id ? 'ring-2 ring-primary' : ''}`}
+                    onClick={() => {
+                      setSelectedThreadId(thread.id)
+                      editor.commands.selectThread({ id: thread.id, scrollIntoView: true })
+                    }}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <div 
+                        className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium text-white"
+                        style={{ backgroundColor: thread.data?.authorColor || '#888' }}
+                      >
+                        {(thread.data?.authorName || 'U').charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-xs font-medium">{thread.data?.authorName || 'Unknown'}</span>
+                      <span className="text-xs text-muted-foreground ml-auto">
+                        {thread.resolvedAt ? 'Resolved' : ''}
+                      </span>
+                    </div>
+                    <p className="text-sm">{thread.comments?.[0]?.content || 'Comment'}</p>
+                    {thread.comments?.length > 1 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {thread.comments.length - 1} more replies
+                      </p>
+                    )}
+                    <div className="flex gap-2 mt-2">
+                      {!thread.resolvedAt && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            provider.resolveThread(thread.id)
+                          }}
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          Resolve
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          editor.commands.removeThread({ id: thread.id, deleteThread: true })
+                        }}
+                        className="text-xs text-destructive hover:text-destructive/80"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Thread Popover for viewing/editing existing threads */}
+      {selectedThreadId && threadPopoverPosition && provider && (
+        <ThreadPopover
+          editor={editor}
+          thread={threads.find((t: any) => t.id === selectedThreadId) || null}
+          position={threadPopoverPosition}
+          provider={provider}
+          onClose={() => {
+            setSelectedThreadId(null)
+            setThreadPopoverPosition(null)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// Main component that fetches tokens and wraps with providers
+export function TipTapEditor(props: TipTapEditorProps) {
+  const [aiToken, setAiToken] = useState<string | null>(null)
+  const [collabToken, setCollabToken] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const loadTokens = async () => {
+      try {
+        const [ai, collab] = await Promise.all([
+          fetchAiToken(),
+          fetchCollabToken(),
+        ])
+        setAiToken(ai)
+        setCollabToken(collab)
+      } catch (error) {
+        console.error('Failed to fetch tokens:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    loadTokens()
+  }, [])
+
+  if (isLoading) {
+    return (
+      <div className="min-h-[300px] animate-pulse">
+        <div className="h-10 bg-muted rounded mb-4" />
+        <div className="h-6 bg-muted rounded w-3/4 mb-4" />
+        <div className="h-4 bg-muted rounded w-full mb-2" />
+        <div className="h-4 bg-muted rounded w-5/6 mb-2" />
+        <div className="h-4 bg-muted rounded w-4/6" />
+      </div>
+    )
+  }
+
+  return (
+    <UserProvider>
+      <TipTapEditorInner 
+        docId={props.docId}
+        docTitle={props.docTitle}
+        content={props.content}
+        onSavingChange={props.onSavingChange}
+        aiToken={aiToken}
+        collabToken={collabToken}
+      />
+    </UserProvider>
+  )
+}
