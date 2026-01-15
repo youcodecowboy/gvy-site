@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { IconButton } from '@/components/ui'
 
 export function ThemeToggle() {
-  const { theme, setTheme } = useTheme()
+  const { theme, setTheme, resolvedTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -21,14 +21,17 @@ export function ThemeToggle() {
     )
   }
 
+  // Use resolvedTheme to get actual theme (handles 'system' correctly)
+  const isDark = resolvedTheme === 'dark'
+
   return (
     <IconButton
       size="sm"
-      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+      onClick={() => setTheme(isDark ? 'light' : 'dark')}
       aria-label="Toggle theme"
-      tooltip={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      tooltip={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
     >
-      {theme === 'dark' ? (
+      {isDark ? (
         <Sun className="h-4 w-4" />
       ) : (
         <Moon className="h-4 w-4" />

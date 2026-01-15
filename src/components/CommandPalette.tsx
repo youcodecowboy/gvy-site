@@ -7,13 +7,18 @@ import {
   useRef,
   createContext,
   useContext,
+  useMemo,
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from 'next-themes'
+import { useQuery } from 'convex/react'
+import { useRouter } from 'next/navigation'
+import { api } from '../../convex/_generated/api'
 import {
   FileText,
   FolderPlus,
+  Folder,
   Search,
   Moon,
   Sun,
@@ -61,7 +66,11 @@ export function CommandPaletteProvider({
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [mounted, setMounted] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-  const { theme, setTheme } = useTheme()
+  const { resolvedTheme, setTheme } = useTheme()
+  const router = useRouter()
+  
+  // Fetch all documents for search
+  const allNodes = useQuery(api.nodes.list, {})
 
   useEffect(() => {
     setMounted(true)
@@ -75,8 +84,10 @@ export function CommandPaletteProvider({
   }, [])
   const toggle = useCallback(() => setIsOpen((prev) => !prev), [])
 
-  // Actions
-  const actions: CommandAction[] = [
+  const isDark = resolvedTheme === 'dark'
+
+  // Base actions (always available)
+  const baseActions: CommandAction[] = useMemo(() => [
     {
       id: 'new-doc',
       label: 'New Document',
@@ -96,50 +107,104 @@ export function CommandPaletteProvider({
       },
     },
     {
-      id: 'search',
-      label: 'Search...',
-      icon: <Search className="h-4 w-4" />,
-      onSelect: () => {
-        // TODO: Implement search
-        console.log('Search')
-        close()
-      },
-    },
-    {
       id: 'toggle-theme',
-      label: theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode',
-      icon: theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />,
+      label: isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+      icon: isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />,
       onSelect: () => {
-        setTheme(theme === 'dark' ? 'light' : 'dark')
+        setTheme(isDark ? 'light' : 'dark')
         close()
       },
     },
-  ]
+  ], [onNewDoc, onNewFolder, isDark, setTheme, close])
 
-  // Filter actions by query
-  const filteredActions = query
-    ? actions.filter((action) =>
-        action.label.toLowerCase().includes(query.toLowerCase())
-      )
-    : actions
+  // Search documents when query is present
+  const searchResults: CommandAction[] = useMemo(() => {
+    if (!query || query.length < 2 || !allNodes) return []
+    
+    const lowerQuery = query.toLowerCase()
+    const results: CommandAction[] = []
+    
+    for (const node of allNodes) {
+      // Search in title
+      const titleMatch = node.title?.toLowerCase().includes(lowerQuery)
+      
+      // Search in content (if it exists and is an object with text)
+      let contentMatch = false
+      let contentSnippet = ''
+      if (node.content && typeof node.content === 'object') {
+        const contentStr = JSON.stringify(node.content)
+        contentMatch = contentStr.toLowerCase().includes(lowerQuery)
+        if (contentMatch) {
+          // Try to extract a snippet around the match
+          const idx = contentStr.toLowerCase().indexOf(lowerQuery)
+          const start = Math.max(0, idx - 30)
+          const end = Math.min(contentStr.length, idx + lowerQuery.length + 30)
+          contentSnippet = '...' + contentStr.slice(start, end).replace(/[{}"[\]]/g, ' ').trim() + '...'
+        }
+      }
+      
+      if (titleMatch || contentMatch) {
+        results.push({
+          id: `doc-${node._id}`,
+          label: node.title || 'Untitled',
+          icon: node.type === 'folder' 
+            ? <Folder className="h-4 w-4" /> 
+            : <FileText className="h-4 w-4" />,
+          shortcut: contentMatch && !titleMatch ? contentSnippet : undefined,
+          onSelect: () => {
+            router.push(`/app/${node.type}/${node._id}`)
+            close()
+          },
+        })
+      }
+      
+      // Limit results
+      if (results.length >= 10) break
+    }
+    
+    return results
+  }, [query, allNodes, router, close])
+
+  // Combine search results with filtered base actions
+  const filteredActions = useMemo(() => {
+    const lowerQuery = query.toLowerCase()
+    const filteredBase = query
+      ? baseActions.filter((action) =>
+          action.label.toLowerCase().includes(lowerQuery)
+        )
+      : baseActions
+    
+    // If searching, show search results first, then matching actions
+    if (query.length >= 2) {
+      return [...searchResults, ...filteredBase]
+    }
+    
+    return filteredBase
+  }, [query, baseActions, searchResults])
 
   // Reset selected index when filtered actions change
   useEffect(() => {
     setSelectedIndex(0)
   }, [query])
 
-  // Global keyboard shortcut
+  // Global keyboard shortcuts (Cmd+K to open, Escape to close)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
         toggle()
       }
+      // Global Escape handler - works even when focus is elsewhere
+      if (e.key === 'Escape' && isOpen) {
+        e.preventDefault()
+        e.stopPropagation()
+        close()
+      }
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [toggle])
+  }, [toggle, isOpen, close])
 
   // Focus input when opened
   useEffect(() => {
@@ -201,7 +266,7 @@ export function CommandPaletteProvider({
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Type a command..."
+              placeholder="Search documents or type a command..."
               className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
             />
             <kbd className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
