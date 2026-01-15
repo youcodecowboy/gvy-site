@@ -56,6 +56,10 @@ export function useMoveNode() {
   return useMutation(api.nodes.move)
 }
 
+export function useReorderNode() {
+  return useMutation(api.nodes.reorder)
+}
+
 export function useToggleSharing() {
   return useMutation(api.nodes.toggleSharing)
 }

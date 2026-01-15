@@ -24,8 +24,9 @@ import { useSidebar } from './SidebarContext'
 import { useNavigation } from './NavigationContext'
 import { useCommandPalette } from '@/components/CommandPalette'
 import { useToast } from '@/components/ui'
-import { usePersonalNodes, useOrganizationNodes, useCreateNode, useUpdateTitle, useRemoveNode, useMoveNode } from '@/hooks/useNodes'
-import { useOrganization, useUser } from '@clerk/nextjs'
+import { usePersonalNodes, useOrganizationNodes, useCreateNode, useUpdateTitle, useRemoveNode, useMoveNode, useReorderNode } from '@/hooks/useNodes'
+import { useOrganization, useUser, OrganizationSwitcher } from '@clerk/nextjs'
+import { OrganizationSettingsModal } from '@/components/organization'
 import { useTheme } from 'next-themes'
 import type { Id } from '../../../convex/_generated/dataModel'
 
@@ -43,6 +44,9 @@ export function Sidebar() {
   const [personalExpanded, setPersonalExpanded] = useState(true)
   const [orgExpanded, setOrgExpanded] = useState(true)
   
+  // Organization settings modal state
+  const [isOrgSettingsOpen, setIsOrgSettingsOpen] = useState(false)
+  
   // Convex data
   const personalNodes = usePersonalNodes()
   const orgNodes = useOrganizationNodes(organization?.id)
@@ -50,6 +54,7 @@ export function Sidebar() {
   const updateTitle = useUpdateTitle()
   const removeNode = useRemoveNode()
   const moveNode = useMoveNode()
+  const reorderNode = useReorderNode()
 
   // Track current path for folder context
   const pathname = usePathname()
@@ -139,6 +144,18 @@ export function Sidebar() {
       toast({ title: 'Failed to move', variant: 'error' })
     }
   }, [moveNode, toast])
+
+  const handleReorder = useCallback(async (id: string, newParentId: string | null, newOrder: number) => {
+    try {
+      await reorderNode({
+        id: id as Id<'nodes'>,
+        newParentId: newParentId ? (newParentId as Id<'nodes'>) : null,
+        newOrder,
+      })
+    } catch (error) {
+      toast({ title: 'Failed to move', variant: 'error' })
+    }
+  }, [reorderNode, toast])
 
   // Convert nodes to the format expected by SidebarTree
   const convertNodes = (nodes: typeof personalNodes) => nodes.map((node) => ({
@@ -380,6 +397,7 @@ export function Sidebar() {
                         }}
                         onDelete={handleDelete}
                         onMove={handleMove}
+                        onReorder={handleReorder}
                       />
                     )}
                   </div>
@@ -443,6 +461,7 @@ export function Sidebar() {
                             }}
                             onDelete={handleDelete}
                             onMove={handleMove}
+                            onReorder={handleReorder}
                           />
                         )}
                       </div>
@@ -468,7 +487,10 @@ export function Sidebar() {
                 <span>Search</span>
                 <kbd className="ml-auto text-[10px] bg-muted px-1.5 py-0.5 rounded">⌘K</kbd>
               </button>
-              <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors">
+              <button 
+                onClick={() => setIsOrgSettingsOpen(true)}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+              >
                 <Settings className="h-4 w-4" />
                 <span>Settings</span>
               </button>
@@ -476,6 +498,12 @@ export function Sidebar() {
           </>
         )}
       </aside>
+      
+      {/* Organization Settings Modal */}
+      <OrganizationSettingsModal 
+        isOpen={isOrgSettingsOpen} 
+        onClose={() => setIsOrgSettingsOpen(false)} 
+      />
     </>
   )
 }

@@ -498,6 +498,81 @@ export const move = mutation({
   },
 });
 
+// Reorder a node (move to new parent and/or new position)
+export const reorder = mutation({
+  args: {
+    id: v.id("nodes"),
+    newParentId: v.union(v.id("nodes"), v.null()),
+    newOrder: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const node = await ctx.db.get(args.id);
+    if (!node) {
+      throw new Error("Node not found");
+    }
+
+    // Check access
+    if (node.ownerId !== identity.subject && !node.orgId) {
+      throw new Error("Not authorized");
+    }
+
+    const oldParentId = node.parentId;
+    const oldOrder = node.order;
+    const isSameParent = oldParentId === args.newParentId;
+
+    // Get siblings in target parent
+    let siblings;
+    if (node.orgId) {
+      siblings = await ctx.db
+        .query("nodes")
+        .withIndex("by_org_parent", (q) =>
+          q.eq("orgId", node.orgId!).eq("parentId", args.newParentId)
+        )
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .collect();
+    } else {
+      siblings = await ctx.db
+        .query("nodes")
+        .withIndex("by_owner_parent", (q) =>
+          q.eq("ownerId", identity.subject).eq("parentId", args.newParentId)
+        )
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .collect();
+    }
+
+    // Filter out the moving node itself
+    siblings = siblings.filter((s) => s._id !== args.id);
+
+    // Sort siblings by order
+    siblings.sort((a, b) => a.order - b.order);
+
+    // Update orders for affected siblings
+    let orderCounter = 0;
+    for (let i = 0; i < siblings.length; i++) {
+      // Insert the moved node at the right position
+      if (orderCounter === args.newOrder) {
+        orderCounter++;
+      }
+      
+      if (siblings[i].order !== orderCounter) {
+        await ctx.db.patch(siblings[i]._id, { order: orderCounter });
+      }
+      orderCounter++;
+    }
+
+    // Update the moved node
+    await ctx.db.patch(args.id, {
+      parentId: args.newParentId,
+      order: args.newOrder,
+    });
+  },
+});
+
 // Update a folder's description
 export const updateDescription = mutation({
   args: {

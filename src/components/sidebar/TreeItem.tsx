@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronRight, Folder, FileText, MoreHorizontal } from 'lucide-react'
+import { useDraggable, useDroppable } from '@dnd-kit/core'
+import { ChevronRight, Folder, FileText, MoreHorizontal, GripVertical } from 'lucide-react'
 import { useTree } from './TreeContext'
 import { TreeContextMenu } from './TreeContextMenu'
 import type { Node } from '@/lib/mockTree'
@@ -13,9 +14,12 @@ interface TreeItemProps {
   node: Node
   nodes: Node[]
   depth: number
+  activeId?: string | null
+  overId?: string | null
+  dropPosition?: 'before' | 'after' | 'inside' | null
 }
 
-export function TreeItem({ node, nodes, depth }: TreeItemProps) {
+export function TreeItem({ node, nodes, depth, activeId, overId, dropPosition }: TreeItemProps) {
   const router = useRouter()
   const {
     isExpanded,
@@ -46,8 +50,40 @@ export function TreeItem({ node, nodes, depth }: TreeItemProps) {
   const isFocused = focusedId === node.id
   const isRenaming = renamingId === node.id
   const isContextMenuOpen = contextMenuId === node.id
+  const isDragging = activeId === node.id
 
   const href = isFolder ? `/app/folder/${node.id}` : `/app/doc/${node.id}`
+  
+  // Draggable setup
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setDragRef,
+    transform,
+  } = useDraggable({
+    id: node.id,
+    disabled: isRenaming,
+  })
+  
+  // Drop zone before this item
+  const { setNodeRef: setDropBeforeRef, isOver: isOverBefore } = useDroppable({
+    id: `before-${node.id}`,
+    data: { type: 'dropzone-before', nodeId: node.id, parentId: node.parentId, order: node.order },
+  })
+  
+  // Drop zone after this item (only if not a folder or folder is collapsed)
+  const { setNodeRef: setDropAfterRef, isOver: isOverAfter } = useDroppable({
+    id: `after-${node.id}`,
+    data: { type: 'dropzone-after', nodeId: node.id, parentId: node.parentId, order: node.order },
+    disabled: isFolder && expanded && hasChildNodes,
+  })
+  
+  // Drop zone inside folder
+  const { setNodeRef: setDropInsideRef, isOver: isOverInside } = useDroppable({
+    id: `inside-${node.id}`,
+    data: { type: 'folder', nodeId: node.id },
+    disabled: !isFolder || isDragging,
+  })
 
   // Auto-focus and select input when renaming starts
   useEffect(() => {
@@ -136,89 +172,119 @@ export function TreeItem({ node, nodes, depth }: TreeItemProps) {
   }, [escPressed, localTitle, node.id, node.title, commitRename, cancelRename])
 
   const children = isFolder && expanded ? getChildren(nodes, node.id) : []
+  
+  // Combine refs for folder (draggable + droppable inside)
+  const combineRefs = (...refs: ((node: HTMLElement | null) => void)[]) => (node: HTMLElement | null) => {
+    refs.forEach(ref => ref(node))
+  }
 
   return (
-    <div>
-      <Link
-        href={href}
-        onClick={handleClick}
-        className={`
-          group flex items-center gap-1 pr-2 py-1.5 text-sm rounded-md
-          transition-colors relative select-none
-          ${isSelected
-            ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-            : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
-          }
-          ${isFocused && !isSelected ? 'ring-1 ring-ring ring-inset' : ''}
-        `}
-        style={{ paddingLeft: `${depth * 12 + 8}px` }}
+    <div className={isDragging ? 'opacity-50' : ''}>
+      {/* Drop zone before */}
+      <div
+        ref={setDropBeforeRef}
+        className={`h-0.5 -my-0.5 mx-2 rounded transition-colors ${
+          isOverBefore ? 'bg-primary' : 'bg-transparent'
+        }`}
+        style={{ marginLeft: `${depth * 12 + 8}px` }}
+      />
+      
+      <div
+        ref={isFolder ? combineRefs(setDragRef, setDropInsideRef) : setDragRef}
+        {...attributes}
       >
-        {/* Selected indicator */}
-        {isSelected && (
-          <div className="absolute left-0 top-1 bottom-1 w-0.5 bg-foreground rounded-full" />
-        )}
-
-        {/* Chevron for folders */}
-        {isFolder ? (
+        <Link
+          href={href}
+          onClick={handleClick}
+          className={`
+            group flex items-center gap-1 pr-2 py-1.5 text-sm rounded-md
+            transition-colors relative select-none
+            ${isSelected
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+              : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+            }
+            ${isFocused && !isSelected ? 'ring-1 ring-ring ring-inset' : ''}
+            ${isOverInside && !isDragging ? 'ring-2 ring-primary bg-primary/10' : ''}
+          `}
+          style={{ paddingLeft: `${depth * 12 + 4}px` }}
+        >
+          {/* Drag handle */}
           <button
-            onClick={handleChevronClick}
-            className="p-0.5 -ml-1 hover:bg-sidebar-accent rounded shrink-0"
+            {...listeners}
+            className="p-0.5 -ml-0.5 opacity-0 group-hover:opacity-100 hover:bg-sidebar-accent rounded shrink-0 cursor-grab active:cursor-grabbing touch-none"
             tabIndex={-1}
+            onClick={(e) => e.preventDefault()}
           >
-            <ChevronRight
-              className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-150 ${
-                expanded ? 'rotate-90' : ''
-              }`}
+            <GripVertical className="h-3 w-3 text-muted-foreground" />
+          </button>
+
+          {/* Selected indicator */}
+          {isSelected && (
+            <div className="absolute left-0 top-1 bottom-1 w-0.5 bg-foreground rounded-full" />
+          )}
+
+          {/* Chevron for folders */}
+          {isFolder ? (
+            <button
+              onClick={handleChevronClick}
+              className="p-0.5 hover:bg-sidebar-accent rounded shrink-0"
+              tabIndex={-1}
+            >
+              <ChevronRight
+                className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-150 ${
+                  expanded ? 'rotate-90' : ''
+                }`}
+              />
+            </button>
+          ) : (
+            <span className="w-4 shrink-0" />
+          )}
+
+          {/* Icon */}
+          {isFolder ? (
+            <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
+          ) : (
+            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+          )}
+
+          {/* Title or rename input */}
+          {isRenaming ? (
+            <input
+              ref={inputRef}
+              type="text"
+              value={localTitle}
+              onChange={(e) => setLocalTitle(e.target.value)}
+              onKeyDown={handleInputKeyDown}
+              onBlur={handleInputBlur}
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 min-w-0 bg-background border border-ring rounded px-1.5 py-0.5 text-sm text-foreground focus:outline-none"
             />
-          </button>
-        ) : (
-          <span className="w-4 shrink-0" />
-        )}
+          ) : (
+            <span
+              className="flex-1 truncate"
+              onDoubleClick={handleDoubleClick}
+            >
+              {node.title}
+            </span>
+          )}
 
-        {/* Icon */}
-        {isFolder ? (
-          <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
-        ) : (
-          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-        )}
-
-        {/* Title or rename input */}
-        {isRenaming ? (
-          <input
-            ref={inputRef}
-            type="text"
-            value={localTitle}
-            onChange={(e) => setLocalTitle(e.target.value)}
-            onKeyDown={handleInputKeyDown}
-            onBlur={handleInputBlur}
-            onClick={(e) => e.stopPropagation()}
-            className="flex-1 min-w-0 bg-background border border-ring rounded px-1.5 py-0.5 text-sm text-foreground focus:outline-none"
-          />
-        ) : (
-          <span
-            className="flex-1 truncate"
-            onDoubleClick={handleDoubleClick}
-          >
-            {node.title}
-          </span>
-        )}
-
-        {/* More button (visible on hover) */}
-        {!isRenaming && (
-          <button
-            ref={moreButtonRef}
-            onClick={handleMoreClick}
-            className={`
-              p-0.5 rounded hover:bg-sidebar-accent shrink-0
-              ${isContextMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
-              transition-opacity
-            `}
-            tabIndex={-1}
-          >
-            <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-          </button>
-        )}
-      </Link>
+          {/* More button (visible on hover) */}
+          {!isRenaming && (
+            <button
+              ref={moreButtonRef}
+              onClick={handleMoreClick}
+              className={`
+                p-0.5 rounded hover:bg-sidebar-accent shrink-0
+                ${isContextMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
+                transition-opacity
+              `}
+              tabIndex={-1}
+            >
+              <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+            </button>
+          )}
+        </Link>
+      </div>
 
       {/* Context menu */}
       {isContextMenuOpen && contextMenuPosition && (
@@ -238,10 +304,40 @@ export function TreeItem({ node, nodes, depth }: TreeItemProps) {
               node={child}
               nodes={nodes}
               depth={depth + 1}
+              activeId={activeId}
+              overId={overId}
+              dropPosition={dropPosition}
             />
           ))}
         </div>
       )}
+      
+      {/* Drop zone after (only shown for last item or when folder is collapsed) */}
+      {(!isFolder || !expanded || !hasChildNodes) && (
+        <div
+          ref={setDropAfterRef}
+          className={`h-0.5 -my-0.5 mx-2 rounded transition-colors ${
+            isOverAfter ? 'bg-primary' : 'bg-transparent'
+          }`}
+          style={{ marginLeft: `${depth * 12 + 8}px` }}
+        />
+      )}
+    </div>
+  )
+}
+
+// Drag overlay component for showing the dragged item
+export function DragOverlayItem({ node }: { node: Node }) {
+  const isFolder = node.type === 'folder'
+  
+  return (
+    <div className="flex items-center gap-2 px-3 py-1.5 text-sm bg-background border border-border rounded-md shadow-lg">
+      {isFolder ? (
+        <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
+      ) : (
+        <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+      )}
+      <span className="truncate">{node.title}</span>
     </div>
   )
 }

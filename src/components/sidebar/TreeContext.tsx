@@ -41,6 +41,9 @@ interface TreeContextValue {
   startMove: (id: string) => void
   cancelMove: () => void
   
+  // Reorder (drag and drop)
+  onReorder?: (id: string, newParentId: string | null, newOrder: number) => void
+  
   // Selection state (from route)
   selectedId: string | null
   setSelectedId: (id: string | null) => void
@@ -66,6 +69,7 @@ interface TreeProviderProps {
   onNewDoc?: (parentId?: string | null) => void
   onNewFolder?: (parentId?: string | null) => void
   onMove?: (id: string, newParentId: string | null) => void
+  onReorder?: (id: string, newParentId: string | null, newOrder: number) => void
 }
 
 export function TreeProvider({
@@ -76,6 +80,7 @@ export function TreeProvider({
   onNewDoc,
   onNewFolder,
   onMove,
+  onReorder,
 }: TreeProviderProps) {
   // Initialize expanded state from localStorage
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
@@ -212,6 +217,7 @@ export function TreeProvider({
         movingId,
         startMove,
         cancelMove,
+        onReorder,
         selectedId,
         setSelectedId,
         focusedId,
