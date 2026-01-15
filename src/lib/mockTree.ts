@@ -106,6 +106,21 @@ export function getVisibleNodeIds(
   return result
 }
 
+// Get all descendants of a node (for focus mode)
+export function getDescendants(nodes: Node[], parentId: string): Node[] {
+  const result: Node[] = []
+  const children = getChildren(nodes, parentId)
+  
+  for (const child of children) {
+    result.push(child)
+    if (child.type === 'folder') {
+      result.push(...getDescendants(nodes, child.id))
+    }
+  }
+  
+  return result
+}
+
 // Get recently updated docs
 export function getRecentDocs(nodes: Node[], limit = 5): Node[] {
   return nodes

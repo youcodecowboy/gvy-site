@@ -57,6 +57,12 @@ interface TreeContextValue {
   contextMenuPosition: { x: number; y: number } | null
   openContextMenu: (id: string, position: { x: number; y: number }) => void
   closeContextMenu: () => void
+  
+  // Focus mode (drill into folder)
+  focusedFolderId: string | null
+  enterFocusMode: (folderId: string) => void
+  exitFocusMode: () => void
+  goUpFocusLevel: (targetFolderId: string | null) => void
 }
 
 const TreeContext = createContext<TreeContextValue | null>(null)
@@ -102,6 +108,7 @@ export function TreeProvider({
   const [focusedId, setFocusedId] = useState<string | null>(null)
   const [contextMenuId, setContextMenuId] = useState<string | null>(null)
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null)
+  const [focusedFolderId, setFocusedFolderId] = useState<string | null>(null)
 
   // Persist expanded state to localStorage
   useEffect(() => {
@@ -195,6 +202,18 @@ export function TreeProvider({
     setContextMenuPosition(null)
   }, [])
 
+  const enterFocusMode = useCallback((folderId: string) => {
+    setFocusedFolderId(folderId)
+  }, [])
+
+  const exitFocusMode = useCallback(() => {
+    setFocusedFolderId(null)
+  }, [])
+
+  const goUpFocusLevel = useCallback((targetFolderId: string | null) => {
+    setFocusedFolderId(targetFolderId)
+  }, [])
+
   return (
     <TreeContext.Provider
       value={{
@@ -226,6 +245,10 @@ export function TreeProvider({
         contextMenuPosition,
         openContextMenu,
         closeContextMenu,
+        focusedFolderId,
+        enterFocusMode,
+        exitFocusMode,
+        goUpFocusLevel,
       }}
     >
       {children}

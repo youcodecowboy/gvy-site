@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
-import { ChevronRight, Folder, FileText, MoreHorizontal, GripVertical } from 'lucide-react'
+import { ChevronRight, Folder, FileText, MoreHorizontal, GripVertical, Eye } from 'lucide-react'
 import { useTree } from './TreeContext'
 import { TreeContextMenu } from './TreeContextMenu'
 import type { Node } from '@/lib/mockTree'
@@ -36,6 +36,7 @@ export function TreeItem({ node, nodes, depth, activeId, overId, dropPosition }:
     contextMenuPosition,
     openContextMenu,
     closeContextMenu,
+    enterFocusMode,
   } = useTree()
 
   const [localTitle, setLocalTitle] = useState(node.title)
@@ -141,6 +142,15 @@ export function TreeItem({ node, nodes, depth, activeId, overId, dropPosition }:
     [node.id, openContextMenu]
   )
 
+  const handleFocusClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      enterFocusMode(node.id)
+    },
+    [node.id, enterFocusMode]
+  )
+
   const handleInputKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter') {
@@ -240,9 +250,12 @@ export function TreeItem({ node, nodes, depth, activeId, overId, dropPosition }:
             <span className="w-4 shrink-0" />
           )}
 
-          {/* Icon */}
+          {/* Icon - double click on folder icon to enter focus mode */}
           {isFolder ? (
-            <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
+            <Folder 
+              className="h-4 w-4 text-muted-foreground shrink-0 cursor-pointer" 
+              onDoubleClick={handleFocusClick}
+            />
           ) : (
             <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
           )}
@@ -266,6 +279,18 @@ export function TreeItem({ node, nodes, depth, activeId, overId, dropPosition }:
             >
               {node.title}
             </span>
+          )}
+
+          {/* Focus button for folders (visible on hover) */}
+          {!isRenaming && isFolder && (
+            <button
+              onClick={handleFocusClick}
+              className="p-0.5 rounded hover:bg-sidebar-accent shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              tabIndex={-1}
+              title="Focus on this folder"
+            >
+              <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
           )}
 
           {/* More button (visible on hover) */}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import {
   DndContext,
@@ -14,6 +14,7 @@ import {
   type DragEndEvent,
   type DragOverEvent,
 } from '@dnd-kit/core'
+import { ChevronLeft, Home, ChevronRight, Folder } from 'lucide-react'
 import { TreeProvider, useTree } from './TreeContext'
 import { TreeItem, DragOverlayItem } from './TreeItem'
 import { TreeEmptyState } from './TreeEmptyState'
@@ -25,6 +26,8 @@ import {
   findNodeById,
   getAncestorIds,
   getChildren,
+  getNodePath,
+  getDescendants,
 } from '@/lib/mockTree'
 
 interface SidebarTreeProps {
@@ -35,6 +38,48 @@ interface SidebarTreeProps {
   onDelete?: (id: string) => void
   onMove?: (id: string, newParentId: string | null) => void
   onReorder?: (id: string, newParentId: string | null, newOrder: number) => void
+}
+
+// Focus mode breadcrumb component
+function FocusBreadcrumb({ nodes, focusedFolderId, onNavigate }: {
+  nodes: Node[]
+  focusedFolderId: string
+  onNavigate: (folderId: string | null) => void
+}) {
+  const focusPath = getNodePath(nodes, focusedFolderId)
+  const focusedFolder = findNodeById(nodes, focusedFolderId)
+  
+  return (
+    <div className="flex items-center gap-1 px-2 py-1.5 bg-sidebar-accent/50 border-b border-sidebar-border text-xs">
+      <button
+        onClick={() => onNavigate(null)}
+        className="p-1 rounded hover:bg-sidebar-accent transition-colors shrink-0"
+        title="Back to all folders"
+      >
+        <Home className="h-3.5 w-3.5 text-muted-foreground" />
+      </button>
+      
+      {focusPath.length > 1 && (
+        <>
+          <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+          <button
+            onClick={() => onNavigate(focusPath[focusPath.length - 2]?.id || null)}
+            className="p-1 rounded hover:bg-sidebar-accent transition-colors shrink-0"
+            title="Go up one level"
+          >
+            <ChevronLeft className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+        </>
+      )}
+      
+      <div className="flex items-center gap-1 min-w-0 flex-1">
+        <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <span className="truncate font-medium text-foreground">
+          {focusedFolder?.title || 'Folder'}
+        </span>
+      </div>
+    </div>
+  )
 }
 
 function TreeContent({ nodes }: { nodes: Node[] }) {
@@ -60,7 +105,29 @@ function TreeContent({ nodes }: { nodes: Node[] }) {
     onNewDoc,
     onNewFolder,
     onReorder,
+    focusedFolderId,
+    goUpFocusLevel,
   } = useTree()
+  
+  // Filter nodes when in focus mode
+  const displayNodes = useMemo(() => {
+    if (!focusedFolderId) return nodes
+    
+    // Get the focused folder and all its descendants
+    const focusedFolder = findNodeById(nodes, focusedFolderId)
+    if (!focusedFolder) return nodes
+    
+    const descendants = getDescendants(nodes, focusedFolderId)
+    return [focusedFolder, ...descendants]
+  }, [nodes, focusedFolderId])
+  
+  // Get root nodes for display (direct children of focused folder, or actual root)
+  const displayRootNodes = useMemo(() => {
+    if (focusedFolderId) {
+      return getChildren(displayNodes, focusedFolderId)
+    }
+    return getRootNodes(displayNodes)
+  }, [displayNodes, focusedFolderId])
   
   // DnD sensors with activation delay to prevent accidental drags
   const sensors = useSensors(
@@ -72,7 +139,7 @@ function TreeContent({ nodes }: { nodes: Node[] }) {
     useSensor(KeyboardSensor)
   )
   
-  const activeNode = activeId ? findNodeById(nodes, activeId) : null
+  const activeNode = activeId ? findNodeById(displayNodes, activeId) : null
   
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveId(event.active.id as string)
@@ -190,12 +257,11 @@ function TreeContent({ nodes }: { nodes: Node[] }) {
     }
   }, [pathname, nodes, setSelectedId, expandAll])
 
-  const rootNodes = getRootNodes(nodes)
-  const isEmpty = rootNodes.length === 0
+  const isEmpty = displayRootNodes.length === 0 && !focusedFolderId
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      const visibleIds = getVisibleNodeIds(nodes, expandedIds)
+      const visibleIds = getVisibleNodeIds(displayNodes, expandedIds, focusedFolderId)
       const currentIndex = focusedId ? visibleIds.indexOf(focusedId) : -1
 
       switch (e.key) {
@@ -214,7 +280,7 @@ function TreeContent({ nodes }: { nodes: Node[] }) {
         case 'ArrowRight': {
           e.preventDefault()
           if (focusedId) {
-            const node = findNodeById(nodes, focusedId)
+            const node = findNodeById(displayNodes, focusedId)
             if (node?.type === 'folder' && !isExpanded(focusedId)) {
               expand(focusedId)
             }
@@ -224,7 +290,7 @@ function TreeContent({ nodes }: { nodes: Node[] }) {
         case 'ArrowLeft': {
           e.preventDefault()
           if (focusedId) {
-            const node = findNodeById(nodes, focusedId)
+            const node = findNodeById(displayNodes, focusedId)
             if (node?.type === 'folder' && isExpanded(focusedId)) {
               collapse(focusedId)
             }
@@ -234,7 +300,7 @@ function TreeContent({ nodes }: { nodes: Node[] }) {
         case 'Enter': {
           e.preventDefault()
           if (focusedId) {
-            const node = findNodeById(nodes, focusedId)
+            const node = findNodeById(displayNodes, focusedId)
             if (node) {
               const href = node.type === 'folder'
                 ? `/app/folder/${node.id}`
@@ -247,6 +313,14 @@ function TreeContent({ nodes }: { nodes: Node[] }) {
           }
           break
         }
+        case 'Escape': {
+          // Exit focus mode with Escape
+          if (focusedFolderId) {
+            e.preventDefault()
+            goUpFocusLevel(null)
+          }
+          break
+        }
         case 'F2': {
           e.preventDefault()
           // F2 to rename is handled by TreeItem
@@ -254,7 +328,7 @@ function TreeContent({ nodes }: { nodes: Node[] }) {
         }
       }
     },
-    [nodes, expandedIds, focusedId, setFocusedId, expand, collapse, isExpanded, toggleExpand, router]
+    [displayNodes, expandedIds, focusedId, focusedFolderId, setFocusedId, expand, collapse, isExpanded, toggleExpand, router, goUpFocusLevel]
   )
 
   if (isEmpty) {
@@ -275,26 +349,43 @@ function TreeContent({ nodes }: { nodes: Node[] }) {
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div
-        ref={containerRef}
-        className="flex-1 overflow-y-auto py-2 focus:outline-none"
-        tabIndex={0}
-        onKeyDown={handleKeyDown}
-        role="tree"
-        aria-label="Document tree"
-      >
-        <div className="space-y-0.5 px-2">
-          {rootNodes.map((node) => (
-            <TreeItem 
-              key={node.id} 
-              node={node} 
-              nodes={nodes} 
-              depth={0}
-              activeId={activeId}
-              overId={overId}
-              dropPosition={dropPosition}
-            />
-          ))}
+      <div className="flex flex-col flex-1 overflow-hidden">
+        {/* Focus mode breadcrumb */}
+        {focusedFolderId && (
+          <FocusBreadcrumb
+            nodes={nodes}
+            focusedFolderId={focusedFolderId}
+            onNavigate={goUpFocusLevel}
+          />
+        )}
+        
+        <div
+          ref={containerRef}
+          className="flex-1 overflow-y-auto py-2 focus:outline-none"
+          tabIndex={0}
+          onKeyDown={handleKeyDown}
+          role="tree"
+          aria-label="Document tree"
+        >
+          {displayRootNodes.length === 0 && focusedFolderId ? (
+            <div className="px-4 py-3 text-xs text-muted-foreground text-center">
+              This folder is empty
+            </div>
+          ) : (
+            <div className="space-y-0.5 px-2">
+              {displayRootNodes.map((node) => (
+                <TreeItem 
+                  key={node.id} 
+                  node={node} 
+                  nodes={displayNodes} 
+                  depth={0}
+                  activeId={activeId}
+                  overId={overId}
+                  dropPosition={dropPosition}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
       
