@@ -1,0 +1,77 @@
+.link-popover-card {
+  min-width: 320px;
+}
+
+.link-popover-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--tt-border-color, hsl(0 0% 90%));
+}
+
+.link-popover-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--tt-text-muted, hsl(0 0% 50%));
+  transition: all 0.15s ease;
+  position: relative;
+
+  &::after {
+    content: "";
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: transparent;
+    transition: background-color 0.15s ease;
+  }
+
+  &:hover {
+    color: var(--tt-text-color, hsl(0 0% 10%));
+    background-color: var(--tt-bg-hover, hsl(0 0% 97%));
+  }
+
+  &.is-active {
+    color: var(--tt-primary-color, hsl(220 90% 50%));
+
+    &::after {
+      background: var(--tt-primary-color, hsl(220 90% 50%));
+    }
+  }
+
+  &:focus {
+    outline: none;
+  }
+}
+
+.link-popover-tab-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.link-popover-url-content {
+  padding: 8px;
+}
+
+// Dark mode support
+:root[data-theme="dark"],
+.dark {
+  .link-popover-tabs {
+    border-bottom-color: var(--tt-border-color, hsl(0 0% 25%));
+  }
+
+  .link-popover-tab {
+    &:hover {
+      color: var(--tt-text-color, hsl(0 0% 95%));
+      background-color: var(--tt-bg-hover, hsl(0 0% 20%));
+    }
+  }
+}

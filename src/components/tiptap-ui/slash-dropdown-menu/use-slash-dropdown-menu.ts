@@ -20,6 +20,7 @@ import { AtSignIcon } from "@/components/tiptap-icons/at-sign-icon"
 import { SmilePlusIcon } from "@/components/tiptap-icons/smile-plus-icon"
 import { TableIcon } from "@/components/tiptap-icons/table-icon"
 import { ListIndentedIcon } from "@/components/tiptap-icons/list-indented-icon"
+import { ArrowRightIcon } from "@/components/tiptap-icons/arrow-right-icon"
 
 // --- Lib ---
 import {
@@ -161,6 +162,13 @@ const texts = {
     subtext: "Insert a table of contents",
     keywords: ["toc", "tableofcontents", "table of contents"],
     badge: ListIndentedIcon,
+    group: "Insert",
+  },
+  section_link: {
+    title: "Section Link",
+    subtext: "Link to another document",
+    keywords: ["section", "next", "link", "document", "navigation", "related"],
+    badge: ArrowRightIcon,
     group: "Insert",
   },
 
@@ -326,6 +334,12 @@ const getItemImplementations = () => {
       check: (editor: Editor) => isNodeInSchema("tocNode", editor),
       action: ({ editor }: { editor: Editor }) => {
         editor.chain().focus().insertTocNode().run()
+      },
+    },
+    section_link: {
+      check: (editor: Editor) => isNodeInSchema("sectionLinkNode", editor),
+      action: ({ editor }: { editor: Editor }) => {
+        editor.chain().focus().insertSectionLink().run()
       },
     },
     table: {

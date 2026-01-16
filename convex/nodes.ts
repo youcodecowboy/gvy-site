@@ -725,3 +725,81 @@ export const getDescendants = query({
     return await getChildrenRecursive(args.id, 0);
   },
 });
+
+// Search documents by title (for document linking)
+export const search = query({
+  args: {
+    query: v.string(),
+    orgId: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return [];
+    }
+
+    const searchLimit = args.limit ?? 10;
+    const searchQuery = args.query.toLowerCase().trim();
+
+    // Get all accessible docs
+    let allDocs;
+    if (args.orgId) {
+      allDocs = await ctx.db
+        .query("nodes")
+        .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+        .filter((q) => 
+          q.and(
+            q.eq(q.field("type"), "doc"),
+            q.neq(q.field("isDeleted"), true)
+          )
+        )
+        .collect();
+    } else {
+      allDocs = await ctx.db
+        .query("nodes")
+        .withIndex("by_owner", (q) => q.eq("ownerId", identity.subject))
+        .filter((q) => 
+          q.and(
+            q.eq(q.field("type"), "doc"),
+            q.neq(q.field("isDeleted"), true)
+          )
+        )
+        .collect();
+    }
+
+    // If no search query, return recent docs
+    if (!searchQuery) {
+      return allDocs
+        .sort((a, b) => (b.updatedAt || b._creationTime) - (a.updatedAt || a._creationTime))
+        .slice(0, searchLimit)
+        .map((doc) => ({
+          _id: doc._id,
+          title: doc.title,
+          icon: doc.icon,
+          updatedAt: doc.updatedAt || doc._creationTime,
+        }));
+    }
+
+    // Filter by title match
+    const matchingDocs = allDocs
+      .filter((doc) => doc.title.toLowerCase().includes(searchQuery))
+      .sort((a, b) => {
+        // Prioritize exact matches at the start
+        const aStartsWith = a.title.toLowerCase().startsWith(searchQuery);
+        const bStartsWith = b.title.toLowerCase().startsWith(searchQuery);
+        if (aStartsWith && !bStartsWith) return -1;
+        if (!aStartsWith && bStartsWith) return 1;
+        // Then sort by recency
+        return (b.updatedAt || b._creationTime) - (a.updatedAt || a._creationTime);
+      })
+      .slice(0, searchLimit);
+
+    return matchingDocs.map((doc) => ({
+      _id: doc._id,
+      title: doc.title,
+      icon: doc.icon,
+      updatedAt: doc.updatedAt || doc._creationTime,
+    }));
+  },
+});

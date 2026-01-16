@@ -12,10 +12,12 @@ import { CornerDownLeftIcon } from "@/components/tiptap-icons/corner-down-left-i
 import { ExternalLinkIcon } from "@/components/tiptap-icons/external-link-icon"
 import { LinkIcon } from "@/components/tiptap-icons/link-icon"
 import { TrashIcon } from "@/components/tiptap-icons/trash-icon"
+import { FileTextIcon } from "@/components/tiptap-icons/file-text-icon"
 
 // --- Tiptap UI ---
 import type { UseLinkPopoverConfig } from "@/components/tiptap-ui/link-popover"
 import { useLinkPopover } from "@/components/tiptap-ui/link-popover"
+import { DocumentLinkPicker } from "@/components/tiptap-ui/link-popover/document-link-picker"
 
 // --- UI Primitives ---
 import type { ButtonProps } from "@/components/tiptap-ui-primitive/button"
@@ -32,6 +34,10 @@ import {
   CardItemGroup,
 } from "@/components/tiptap-ui-primitive/card"
 import { Input, InputGroup } from "@/components/tiptap-ui-primitive/input"
+
+import "./link-popover.scss"
+
+type LinkTab = "url" | "document"
 
 export interface LinkMainProps {
   /**
@@ -100,9 +106,38 @@ export const LinkButton = forwardRef<HTMLButtonElement, ButtonProps>(
 LinkButton.displayName = "LinkButton"
 
 /**
- * Main content component for the link popover
+ * Tab switcher for URL vs Document
  */
-const LinkMain: React.FC<LinkMainProps> = ({
+const LinkTabSwitcher: React.FC<{
+  activeTab: LinkTab
+  onTabChange: (tab: LinkTab) => void
+}> = ({ activeTab, onTabChange }) => {
+  return (
+    <div className="link-popover-tabs">
+      <button
+        type="button"
+        className={`link-popover-tab ${activeTab === "url" ? "is-active" : ""}`}
+        onClick={() => onTabChange("url")}
+      >
+        <LinkIcon className="link-popover-tab-icon" />
+        <span>URL</span>
+      </button>
+      <button
+        type="button"
+        className={`link-popover-tab ${activeTab === "document" ? "is-active" : ""}`}
+        onClick={() => onTabChange("document")}
+      >
+        <FileTextIcon className="link-popover-tab-icon" />
+        <span>Document</span>
+      </button>
+    </div>
+  )
+}
+
+/**
+ * URL input content for the link popover
+ */
+const LinkUrlContent: React.FC<LinkMainProps> = ({
   url,
   setUrl,
   setLink,
@@ -120,6 +155,74 @@ const LinkMain: React.FC<LinkMainProps> = ({
   }
 
   return (
+    <div
+      className="link-popover-url-content"
+      style={{
+        ...(isMobile ? { padding: 0 } : {}),
+      }}
+    >
+      <CardItemGroup orientation="horizontal">
+        <InputGroup>
+          <Input
+            type="url"
+            placeholder="Paste a link..."
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={handleKeyDown}
+            autoFocus
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+          />
+        </InputGroup>
+
+        <ButtonGroup orientation="horizontal">
+          <Button
+            type="button"
+            onClick={setLink}
+            title="Apply link"
+            disabled={!url && !isActive}
+            data-style="ghost"
+          >
+            <CornerDownLeftIcon className="tiptap-button-icon" />
+          </Button>
+        </ButtonGroup>
+
+        <Separator />
+
+        <ButtonGroup orientation="horizontal">
+          <Button
+            type="button"
+            onClick={openLink}
+            title="Open in new window"
+            disabled={!url && !isActive}
+            data-style="ghost"
+          >
+            <ExternalLinkIcon className="tiptap-button-icon" />
+          </Button>
+
+          <Button
+            type="button"
+            onClick={removeLink}
+            title="Remove link"
+            disabled={!url && !isActive}
+            data-style="ghost"
+          >
+            <TrashIcon className="tiptap-button-icon" />
+          </Button>
+        </ButtonGroup>
+      </CardItemGroup>
+    </div>
+  )
+}
+
+/**
+ * Main content component for the link popover (legacy support)
+ */
+const LinkMain: React.FC<LinkMainProps> = (props) => {
+  const isMobile = useIsBreakpoint()
+
+  return (
     <Card
       style={{
         ...(isMobile ? { boxShadow: "none", border: 0 } : {}),
@@ -130,57 +233,43 @@ const LinkMain: React.FC<LinkMainProps> = ({
           ...(isMobile ? { padding: 0 } : {}),
         }}
       >
-        <CardItemGroup orientation="horizontal">
-          <InputGroup>
-            <Input
-              type="url"
-              placeholder="Paste a link..."
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              onKeyDown={handleKeyDown}
-              autoFocus
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-            />
-          </InputGroup>
+        <LinkUrlContent {...props} />
+      </CardBody>
+    </Card>
+  )
+}
 
-          <ButtonGroup orientation="horizontal">
-            <Button
-              type="button"
-              onClick={setLink}
-              title="Apply link"
-              disabled={!url && !isActive}
-              data-style="ghost"
-            >
-              <CornerDownLeftIcon className="tiptap-button-icon" />
-            </Button>
-          </ButtonGroup>
+/**
+ * Tabbed link content component
+ */
+const LinkTabbedContent: React.FC<
+  LinkMainProps & {
+    editor: Editor | null
+    onClose?: () => void
+  }
+> = ({ editor, onClose, ...linkProps }) => {
+  const [activeTab, setActiveTab] = useState<LinkTab>("url")
+  const isMobile = useIsBreakpoint()
 
-          <Separator />
-
-          <ButtonGroup orientation="horizontal">
-            <Button
-              type="button"
-              onClick={openLink}
-              title="Open in new window"
-              disabled={!url && !isActive}
-              data-style="ghost"
-            >
-              <ExternalLinkIcon className="tiptap-button-icon" />
-            </Button>
-
-            <Button
-              type="button"
-              onClick={removeLink}
-              title="Remove link"
-              disabled={!url && !isActive}
-              data-style="ghost"
-            >
-              <TrashIcon className="tiptap-button-icon" />
-            </Button>
-          </ButtonGroup>
-        </CardItemGroup>
+  return (
+    <Card
+      className="link-popover-card"
+      style={{
+        ...(isMobile ? { boxShadow: "none", border: 0 } : {}),
+      }}
+    >
+      <LinkTabSwitcher activeTab={activeTab} onTabChange={setActiveTab} />
+      <CardBody
+        style={{
+          ...(isMobile ? { padding: 0 } : {}),
+          padding: activeTab === "document" ? 0 : undefined,
+        }}
+      >
+        {activeTab === "url" ? (
+          <LinkUrlContent {...linkProps} />
+        ) : (
+          <DocumentLinkPicker editor={editor} onClose={onClose} />
+        )}
       </CardBody>
     </Card>
   )
@@ -251,6 +340,10 @@ export const LinkPopover = forwardRef<HTMLButtonElement, LinkPopoverProps>(
       setIsOpen(false)
     }, [setLink])
 
+    const handleClose = useCallback(() => {
+      setIsOpen(false)
+    }, [])
+
     const handleClick = useCallback(
       (event: React.MouseEvent<HTMLButtonElement>) => {
         onClick?.(event)
@@ -288,13 +381,15 @@ export const LinkPopover = forwardRef<HTMLButtonElement, LinkPopoverProps>(
         </PopoverTrigger>
 
         <PopoverContent>
-          <LinkMain
+          <LinkTabbedContent
+            editor={editor}
             url={url}
             setUrl={setUrl}
             setLink={handleSetLink}
             removeLink={removeLink}
             openLink={openLink}
             isActive={isActive}
+            onClose={handleClose}
           />
         </PopoverContent>
       </Popover>

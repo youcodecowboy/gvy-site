@@ -1,0 +1,125 @@
+.document-link-picker {
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  max-height: 320px;
+}
+
+.document-link-picker-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  border-bottom: 1px solid var(--tt-border-color, hsl(0 0% 90%));
+
+  .document-link-picker-search-icon {
+    position: absolute;
+    left: 16px;
+    width: 14px;
+    height: 14px;
+    color: var(--tt-text-muted, hsl(0 0% 50%));
+    pointer-events: none;
+  }
+
+  input {
+    padding-left: 28px;
+    width: 100%;
+  }
+}
+
+.document-link-picker-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.document-link-picker-loading,
+.document-link-picker-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  color: var(--tt-text-muted, hsl(0 0% 50%));
+  font-size: 13px;
+}
+
+.document-link-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s ease;
+
+  &:hover,
+  &.is-selected {
+    background-color: var(--tt-bg-hover, hsl(0 0% 95%));
+  }
+
+  &:focus {
+    outline: none;
+    background-color: var(--tt-bg-hover, hsl(0 0% 95%));
+  }
+}
+
+.document-link-picker-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  font-size: 16px;
+  color: var(--tt-text-muted, hsl(0 0% 50%));
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+.document-link-picker-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.document-link-picker-item-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--tt-text-color, hsl(0 0% 10%));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.document-link-picker-item-date {
+  font-size: 11px;
+  color: var(--tt-text-muted, hsl(0 0% 50%));
+}
+
+// Dark mode support
+:root[data-theme="dark"],
+.dark {
+  .document-link-picker-search {
+    border-bottom-color: var(--tt-border-color, hsl(0 0% 25%));
+  }
+
+  .document-link-picker-item {
+    &:hover,
+    &.is-selected {
+      background-color: var(--tt-bg-hover, hsl(0 0% 20%));
+    }
+  }
+
+  .document-link-picker-item-title {
+    color: var(--tt-text-color, hsl(0 0% 95%));
+  }
+}

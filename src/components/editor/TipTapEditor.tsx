@@ -46,6 +46,9 @@ import { NodeAlignment } from '@/components/tiptap-extension/node-alignment-exte
 import { UiState } from '@/components/tiptap-extension/ui-state-extension'
 import { ListNormalizationExtension } from '@/components/tiptap-extension/list-normalization-extension'
 
+// --- Section Link Node ---
+import { SectionLinkNode } from '@/components/tiptap-node/section-link-node'
+
 // --- Table Node ---
 import { TableKit } from '@/components/tiptap-node/table-node/extensions/table-node-extension'
 import { TableHandleExtension } from '@/components/tiptap-node/table-node/extensions/table-handle'
@@ -104,6 +107,7 @@ import '@/components/tiptap-node/heading-node/heading-node.scss'
 import '@/components/tiptap-node/paragraph-node/paragraph-node.scss'
 import '@/components/tiptap-node/table-node/styles/prosemirror-table.scss'
 import '@/components/tiptap-node/table-node/styles/table-node.scss'
+import '@/components/tiptap-node/section-link-node/section-link-node.scss'
 
 // --- Template Styles ---
 import '@/components/tiptap-templates/notion-like/notion-like-editor.scss'
@@ -542,6 +546,7 @@ function TipTapEditorInner({
       NodeAlignment,
       UiState,
       ListNormalizationExtension,
+      SectionLinkNode,
       UniqueID.configure({
         types: [
           'table',
