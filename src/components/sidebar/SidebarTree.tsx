@@ -14,7 +14,7 @@ import {
   type DragEndEvent,
   type DragOverEvent,
 } from '@dnd-kit/core'
-import { ChevronLeft, Home, ChevronRight, Folder } from 'lucide-react'
+import { ChevronLeft, Home, ChevronRight, Folder, Plus } from 'lucide-react'
 import { TreeProvider, useTree } from './TreeContext'
 import { TreeItem, DragOverlayItem } from './TreeItem'
 import { TreeEmptyState } from './TreeEmptyState'
@@ -41,10 +41,11 @@ interface SidebarTreeProps {
 }
 
 // Focus mode breadcrumb component
-function FocusBreadcrumb({ nodes, focusedFolderId, onNavigate }: {
+function FocusBreadcrumb({ nodes, focusedFolderId, onNavigate, onNewDoc }: {
   nodes: Node[]
   focusedFolderId: string
   onNavigate: (folderId: string | null) => void
+  onNewDoc?: (parentId: string) => void
 }) {
   const focusPath = getNodePath(nodes, focusedFolderId)
   const focusedFolder = findNodeById(nodes, focusedFolderId)
@@ -78,6 +79,15 @@ function FocusBreadcrumb({ nodes, focusedFolderId, onNavigate }: {
           {focusedFolder?.title || 'Folder'}
         </span>
       </div>
+      
+      {/* Add new doc button */}
+      <button
+        onClick={() => onNewDoc?.(focusedFolderId)}
+        className="p-1 rounded hover:bg-sidebar-accent transition-colors shrink-0"
+        title="Add document to this folder"
+      >
+        <Plus className="h-3.5 w-3.5 text-muted-foreground" />
+      </button>
     </div>
   )
 }
@@ -356,6 +366,7 @@ function TreeContent({ nodes }: { nodes: Node[] }) {
             nodes={nodes}
             focusedFolderId={focusedFolderId}
             onNavigate={goUpFocusLevel}
+            onNewDoc={onNewDoc}
           />
         )}
         
