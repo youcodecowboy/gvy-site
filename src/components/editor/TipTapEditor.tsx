@@ -60,6 +60,7 @@ import { TableExtendRowColumnButtons } from '@/components/tiptap-node/table-node
 // --- Tiptap UI Components ---
 import { HeadingDropdownMenu } from '@/components/tiptap-ui/heading-dropdown-menu'
 import { ImageUploadButton } from '@/components/tiptap-ui/image-upload-button'
+import { ExportButton } from '@/components/tiptap-ui/export-button'
 import { ListDropdownMenu } from '@/components/tiptap-ui/list-dropdown-menu'
 import { BlockquoteButton } from '@/components/tiptap-ui/blockquote-button'
 import { CodeBlockButton } from '@/components/tiptap-ui/code-block-button'
@@ -137,12 +138,14 @@ function MainToolbarContent({
   onToggleComments,
   commentCount = 0,
   hasProvider = false,
+  docTitle,
 }: { 
   isMobile: boolean
   showComments?: boolean
   onToggleComments?: () => void
   commentCount?: number
   hasProvider?: boolean
+  docTitle?: string
 }) {
   return (
     <>
@@ -195,6 +198,12 @@ function MainToolbarContent({
 
       <ToolbarGroup>
         <ImageUploadButton text="Image" />
+      </ToolbarGroup>
+
+      <ToolbarSeparator />
+
+      <ToolbarGroup>
+        <ExportButton docTitle={docTitle} />
       </ToolbarGroup>
 
       {hasProvider && onToggleComments && (
@@ -756,6 +765,7 @@ function TipTapEditorInner({
               onToggleComments={() => setShowComments(!showComments)}
               commentCount={unresolvedThreads.length}
               hasProvider={!!provider}
+              docTitle={docTitle}
             />
             
             {/* Collaborators */}
