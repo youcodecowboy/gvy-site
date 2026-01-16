@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useQuery } from "convex/react"
-import { useRouter } from "next/navigation"
+import { useOrganization } from "@clerk/nextjs"
 import type { Editor } from "@tiptap/react"
 import { api } from "../../../../convex/_generated/api"
 import type { Id } from "../../../../convex/_generated/dataModel"
@@ -34,13 +34,14 @@ export function DocumentLinkPicker({
   onSelect,
   onClose,
 }: DocumentLinkPickerProps) {
-  const router = useRouter()
+  const { organization } = useOrganization()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedIndex, setSelectedIndex] = useState(0)
 
-  // Query documents from Convex
+  // Query documents from Convex - include orgId if available
   const documents = useQuery(api.nodes.search, {
     query: searchQuery,
+    orgId: organization?.id,
     limit: 8,
   }) as DocumentResult[] | undefined
 

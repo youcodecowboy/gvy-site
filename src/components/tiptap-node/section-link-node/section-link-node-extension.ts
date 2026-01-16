@@ -126,13 +126,16 @@ export const SectionLinkNode = Node.create<SectionLinkNodeOptions>({
   addNodeView() {
     return ReactNodeViewRenderer(SectionLinkNodeComponent, {
       stopEvent: ({ event }) => {
-        if (!(event instanceof MouseEvent)) return false
         const el = event.target as HTMLElement | null
         if (!el) return false
-        // Allow clicks on the link and picker
+        
+        // Stop ALL events (keyboard, mouse, etc.) inside the picker or card
+        // This prevents the editor from capturing keystrokes when typing in the search input
         return Boolean(
+          el.closest(".section-link-picker") ||
           el.closest(".section-link-card") ||
-            el.closest(".section-link-picker")
+          el.closest(".section-link-change-btn") ||
+          el.tagName === "INPUT"
         )
       },
     })

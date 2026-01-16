@@ -742,10 +742,25 @@ export const search = query({
     const searchLimit = args.limit ?? 10;
     const searchQuery = args.query.toLowerCase().trim();
 
-    // Get all accessible docs
-    let allDocs;
+    // Get all accessible docs - include both personal and org docs when in org context
+    let allDocs: any[] = [];
+    
+    // Always get personal docs
+    const personalDocs = await ctx.db
+      .query("nodes")
+      .withIndex("by_owner", (q) => q.eq("ownerId", identity.subject))
+      .filter((q) => 
+        q.and(
+          q.eq(q.field("type"), "doc"),
+          q.neq(q.field("isDeleted"), true)
+        )
+      )
+      .collect();
+    allDocs = [...personalDocs];
+    
+    // Also get org docs if orgId is provided
     if (args.orgId) {
-      allDocs = await ctx.db
+      const orgDocs = await ctx.db
         .query("nodes")
         .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
         .filter((q) => 
@@ -755,17 +770,7 @@ export const search = query({
           )
         )
         .collect();
-    } else {
-      allDocs = await ctx.db
-        .query("nodes")
-        .withIndex("by_owner", (q) => q.eq("ownerId", identity.subject))
-        .filter((q) => 
-          q.and(
-            q.eq(q.field("type"), "doc"),
-            q.neq(q.field("isDeleted"), true)
-          )
-        )
-        .collect();
+      allDocs = [...allDocs, ...orgDocs];
     }
 
     // If no search query, return recent docs

@@ -5,6 +5,7 @@ import { NodeViewWrapper } from "@tiptap/react"
 import type { NodeViewProps } from "@tiptap/react"
 import { useRouter } from "next/navigation"
 import { useQuery } from "convex/react"
+import { useOrganization } from "@clerk/nextjs"
 import { api } from "../../../../convex/_generated/api"
 import type { Id } from "../../../../convex/_generated/dataModel"
 
@@ -31,15 +32,19 @@ interface DocumentResult {
 function SectionLinkPicker({
   onSelect,
   onClose,
+  orgId,
 }: {
   onSelect: (doc: DocumentResult) => void
   onClose: () => void
+  orgId?: string
 }) {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedIndex, setSelectedIndex] = useState(0)
 
+  // Query documents from Convex - include orgId if available
   const documents = useQuery(api.nodes.search, {
     query: searchQuery,
+    orgId: orgId,
     limit: 6,
   }) as DocumentResult[] | undefined
 
@@ -49,7 +54,16 @@ function SectionLinkPicker({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (!documents || documents.length === 0) return
+      // Stop propagation to prevent editor from handling these keys
+      e.stopPropagation()
+      
+      if (!documents || documents.length === 0) {
+        if (e.key === "Escape") {
+          e.preventDefault()
+          onClose()
+        }
+        return
+      }
 
       switch (e.key) {
         case "ArrowDown":
@@ -90,7 +104,15 @@ function SectionLinkPicker({
           type="text"
           placeholder="Search documents..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => {
+            e.stopPropagation()
+            setSearchQuery(e.target.value)
+          }}
+          onKeyDown={(e) => {
+            // Prevent all keyboard events from bubbling to the editor
+            e.stopPropagation()
+            handleKeyDown(e)
+          }}
           autoFocus
           autoComplete="off"
           autoCorrect="off"
@@ -113,7 +135,10 @@ function SectionLinkPicker({
               className={`section-link-picker-item ${
                 index === selectedIndex ? "is-selected" : ""
               }`}
-              onClick={() => onSelect(doc)}
+              onClick={(e) => {
+                e.stopPropagation()
+                onSelect(doc)
+              }}
               onMouseEnter={() => setSelectedIndex(index)}
             >
               <span className="section-link-picker-item-icon">
@@ -134,8 +159,9 @@ function SectionLinkPicker({
  * Section Link Node component
  */
 export function SectionLinkNodeComponent(props: NodeViewProps) {
-  const { node, updateAttributes, selected, deleteNode } = props
+  const { node, updateAttributes, selected } = props
   const router = useRouter()
+  const { organization } = useOrganization()
   const [showPicker, setShowPicker] = useState(false)
 
   const attrs = node.attrs ?? {}
@@ -194,6 +220,7 @@ export function SectionLinkNodeComponent(props: NodeViewProps) {
           <SectionLinkPicker
             onSelect={handleSelectDocument}
             onClose={() => setShowPicker(false)}
+            orgId={organization?.id}
           />
         ) : (
           <button
