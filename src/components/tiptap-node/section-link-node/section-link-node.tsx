@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useState, useEffect } from "react"
+import { useCallback, useState, useRef, useEffect } from "react"
 import { NodeViewWrapper } from "@tiptap/react"
 import type { NodeViewProps } from "@tiptap/react"
 import { useRouter } from "next/navigation"
@@ -13,6 +13,7 @@ import type { Id } from "../../../../convex/_generated/dataModel"
 import { FileTextIcon } from "@/components/tiptap-icons/file-text-icon"
 import { ArrowRightIcon } from "@/components/tiptap-icons/arrow-right-icon"
 import { SearchIcon } from "@/components/tiptap-icons/search-icon"
+import { CloseIcon } from "@/components/tiptap-icons/close-icon"
 
 // --- UI Primitives ---
 import { Input, InputGroup } from "@/components/tiptap-ui-primitive/input"
@@ -40,6 +41,7 @@ function SectionLinkPicker({
 }) {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   // Query documents from Convex - include orgId if available
   const documents = useQuery(api.nodes.search, {
@@ -52,35 +54,39 @@ function SectionLinkPicker({
     setSelectedIndex(0)
   }, [documents])
 
+  // Focus input on mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      inputRef.current?.focus()
+    }, 50)
+    return () => clearTimeout(timer)
+  }, [])
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       // Stop propagation to prevent editor from handling these keys
       e.stopPropagation()
       
-      if (!documents || documents.length === 0) {
-        if (e.key === "Escape") {
-          e.preventDefault()
-          onClose()
-        }
-        return
-      }
-
       switch (e.key) {
         case "ArrowDown":
           e.preventDefault()
-          setSelectedIndex((prev) =>
-            prev < documents.length - 1 ? prev + 1 : 0
-          )
+          if (documents && documents.length > 0) {
+            setSelectedIndex((prev) =>
+              prev < documents.length - 1 ? prev + 1 : 0
+            )
+          }
           break
         case "ArrowUp":
           e.preventDefault()
-          setSelectedIndex((prev) =>
-            prev > 0 ? prev - 1 : documents.length - 1
-          )
+          if (documents && documents.length > 0) {
+            setSelectedIndex((prev) =>
+              prev > 0 ? prev - 1 : documents.length - 1
+            )
+          }
           break
         case "Enter":
           e.preventDefault()
-          if (documents[selectedIndex]) {
+          if (documents && documents[selectedIndex]) {
             onSelect(documents[selectedIndex])
           }
           break
@@ -94,13 +100,30 @@ function SectionLinkPicker({
   )
 
   return (
-    <div className="section-link-picker" onKeyDown={handleKeyDown}>
+    <div 
+      className="section-link-picker" 
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
       <div className="section-link-picker-header">
         <span>Select a document</span>
+        <button
+          type="button"
+          className="section-link-picker-close"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            onClose()
+          }}
+          title="Close"
+        >
+          <CloseIcon />
+        </button>
       </div>
       <InputGroup className="section-link-picker-search">
         <SearchIcon className="section-link-picker-search-icon" />
         <Input
+          ref={inputRef}
           type="text"
           placeholder="Search documents..."
           value={searchQuery}
@@ -108,12 +131,9 @@ function SectionLinkPicker({
             e.stopPropagation()
             setSearchQuery(e.target.value)
           }}
-          onKeyDown={(e) => {
-            // Prevent all keyboard events from bubbling to the editor
-            e.stopPropagation()
-            handleKeyDown(e)
-          }}
-          autoFocus
+          onKeyDown={handleKeyDown}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="off"
@@ -136,9 +156,11 @@ function SectionLinkPicker({
                 index === selectedIndex ? "is-selected" : ""
               }`}
               onClick={(e) => {
+                e.preventDefault()
                 e.stopPropagation()
                 onSelect(doc)
               }}
+              onMouseDown={(e) => e.stopPropagation()}
               onMouseEnter={() => setSelectedIndex(index)}
             >
               <span className="section-link-picker-item-icon">
@@ -163,11 +185,26 @@ export function SectionLinkNodeComponent(props: NodeViewProps) {
   const router = useRouter()
   const { organization } = useOrganization()
   const [showPicker, setShowPicker] = useState(false)
+  const hasInitialized = useRef(false)
 
   const attrs = node.attrs ?? {}
   const { docId, docTitle, docIcon, label } = attrs
 
   const hasDocument = docId && docTitle
+
+  // Auto-open picker ONLY on first mount if no document is set
+  useEffect(() => {
+    if (!hasInitialized.current && !hasDocument) {
+      hasInitialized.current = true
+      // Small delay to ensure the node is fully mounted
+      const timer = setTimeout(() => {
+        setShowPicker(true)
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+    hasInitialized.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Empty deps - only run once on mount
 
   const handleNavigate = useCallback(() => {
     if (docId) {
@@ -201,12 +238,9 @@ export function SectionLinkNodeComponent(props: NodeViewProps) {
     [hasDocument, handleNavigate]
   )
 
-  // Show picker on initial insert if no document selected
-  useEffect(() => {
-    if (!hasDocument && selected) {
-      setShowPicker(true)
-    }
-  }, [hasDocument, selected])
+  const handleClosePicker = useCallback(() => {
+    setShowPicker(false)
+  }, [])
 
   return (
     <NodeViewWrapper className="section-link-node-wrapper">
@@ -219,7 +253,7 @@ export function SectionLinkNodeComponent(props: NodeViewProps) {
         {showPicker ? (
           <SectionLinkPicker
             onSelect={handleSelectDocument}
-            onClose={() => setShowPicker(false)}
+            onClose={handleClosePicker}
             orgId={organization?.id}
           />
         ) : (
@@ -240,11 +274,12 @@ export function SectionLinkNodeComponent(props: NodeViewProps) {
           </button>
         )}
 
-        {hasDocument && (
+        {hasDocument && !showPicker && (
           <button
             type="button"
             className="section-link-change-btn"
             onClick={(e) => {
+              e.preventDefault()
               e.stopPropagation()
               setShowPicker(true)
             }}
