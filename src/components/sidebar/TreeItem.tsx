@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
-import { ChevronRight, Folder, FileText, MoreHorizontal, GripVertical, Eye } from 'lucide-react'
+import { ChevronRight, Folder, FileText, MoreHorizontal, GripVertical, Eye, Plus, ChevronUp, ChevronDown } from 'lucide-react'
 import { useTree } from './TreeContext'
 import { TreeContextMenu } from './TreeContextMenu'
 import type { Node } from '@/lib/mockTree'
@@ -37,16 +37,28 @@ export function TreeItem({ node, nodes, depth, activeId, overId, dropPosition }:
     openContextMenu,
     closeContextMenu,
     enterFocusMode,
+    onNewDoc,
+    onReorder,
   } = useTree()
 
   const [localTitle, setLocalTitle] = useState(node.title)
   const [escPressed, setEscPressed] = useState(false)
+  const [isHovered, setIsHovered] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const moreButtonRef = useRef<HTMLButtonElement>(null)
 
   const isFolder = node.type === 'folder'
   const expanded = isExpanded(node.id)
   const hasChildNodes = checkHasChildren(nodes, node.id)
+  const childCount = isFolder ? getChildren(nodes, node.id).length : 0
+  
+  // Get siblings for reordering
+  const siblings = node.parentId 
+    ? getChildren(nodes, node.parentId)
+    : nodes.filter(n => !n.parentId).sort((a, b) => a.order - b.order)
+  const currentIndex = siblings.findIndex(s => s.id === node.id)
+  const canMoveUp = currentIndex > 0
+  const canMoveDown = currentIndex < siblings.length - 1
   const isSelected = selectedId === node.id
   const isFocused = focusedId === node.id
   const isRenaming = renamingId === node.id
@@ -151,6 +163,40 @@ export function TreeItem({ node, nodes, depth, activeId, overId, dropPosition }:
     [node.id, enterFocusMode]
   )
 
+  const handleAddDocClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      expand(node.id)
+      onNewDoc?.(node.id)
+    },
+    [node.id, expand, onNewDoc]
+  )
+
+  const handleMoveUp = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (canMoveUp && onReorder) {
+        const prevSibling = siblings[currentIndex - 1]
+        onReorder(node.id, node.parentId, prevSibling.order)
+      }
+    },
+    [canMoveUp, onReorder, siblings, currentIndex, node.id, node.parentId]
+  )
+
+  const handleMoveDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (canMoveDown && onReorder) {
+        const nextSibling = siblings[currentIndex + 1]
+        onReorder(node.id, node.parentId, nextSibling.order + 1)
+      }
+    },
+    [canMoveDown, onReorder, siblings, currentIndex, node.id, node.parentId]
+  )
+
   const handleInputKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter') {
@@ -206,6 +252,8 @@ export function TreeItem({ node, nodes, depth, activeId, overId, dropPosition }:
         <Link
           href={href}
           onClick={handleClick}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
           className={`
             group flex items-center gap-1 pr-2 py-1.5 text-sm rounded-md
             transition-colors relative select-none
@@ -281,6 +329,25 @@ export function TreeItem({ node, nodes, depth, activeId, overId, dropPosition }:
             </span>
           )}
 
+          {/* Child count for folders (visible when not hovered) */}
+          {!isRenaming && isFolder && childCount > 0 && !isHovered && (
+            <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+              {childCount}
+            </span>
+          )}
+
+          {/* Add doc button for folders (visible on hover) */}
+          {!isRenaming && isFolder && isHovered && (
+            <button
+              onClick={handleAddDocClick}
+              className="p-0.5 rounded hover:bg-sidebar-accent shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              tabIndex={-1}
+              title="Add document to folder"
+            >
+              <Plus className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
+          )}
+
           {/* Focus button for folders (visible on hover) */}
           {!isRenaming && isFolder && (
             <button
@@ -291,6 +358,30 @@ export function TreeItem({ node, nodes, depth, activeId, overId, dropPosition }:
             >
               <Eye className="h-3.5 w-3.5 text-muted-foreground" />
             </button>
+          )}
+
+          {/* Move up/down buttons (visible on hover) */}
+          {!isRenaming && isHovered && (
+            <div className="flex flex-col -my-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={handleMoveUp}
+                disabled={!canMoveUp}
+                className={`p-0 rounded hover:bg-sidebar-accent ${!canMoveUp ? 'opacity-30 cursor-not-allowed' : ''}`}
+                tabIndex={-1}
+                title="Move up"
+              >
+                <ChevronUp className="h-3 w-3 text-muted-foreground" />
+              </button>
+              <button
+                onClick={handleMoveDown}
+                disabled={!canMoveDown}
+                className={`p-0 rounded hover:bg-sidebar-accent ${!canMoveDown ? 'opacity-30 cursor-not-allowed' : ''}`}
+                tabIndex={-1}
+                title="Move down"
+              >
+                <ChevronDown className="h-3 w-3 text-muted-foreground" />
+              </button>
+            </div>
           )}
 
           {/* More button (visible on hover) */}
