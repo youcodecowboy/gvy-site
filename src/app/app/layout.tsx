@@ -3,6 +3,7 @@
 import { Sidebar, Header, SidebarProvider, NavigationProvider } from '@/components/app-shell'
 import { ToastProvider } from '@/components/ui'
 import { CommandPaletteProvider } from '@/components/CommandPalette'
+import { DocCacheProvider } from '@/contexts/doc-cache-context'
 
 function AppContent({ children }: { children: React.ReactNode }) {
   return (
@@ -30,13 +31,15 @@ export default function AppLayout({
 }) {
   return (
     <ToastProvider>
-      <CommandPaletteProvider>
-        <SidebarProvider>
-          <NavigationProvider>
-            <AppContent>{children}</AppContent>
-          </NavigationProvider>
-        </SidebarProvider>
-      </CommandPaletteProvider>
+      <DocCacheProvider>
+        <CommandPaletteProvider>
+          <SidebarProvider>
+            <NavigationProvider>
+              <AppContent>{children}</AppContent>
+            </NavigationProvider>
+          </SidebarProvider>
+        </CommandPaletteProvider>
+      </DocCacheProvider>
     </ToastProvider>
   )
 }

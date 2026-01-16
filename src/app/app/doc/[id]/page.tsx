@@ -1,23 +1,71 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { FileText } from 'lucide-react'
 import { useQuery } from 'convex/react'
 import { api } from '../../../../../convex/_generated/api'
 import type { Id } from '../../../../../convex/_generated/dataModel'
-import { EmptyState, Button, Skeleton } from '@/components/ui'
+import { EmptyState, Button, Skeleton, useToast } from '@/components/ui'
 import { TipTapEditor, DocHeader } from '@/components/editor'
+import { useDocCache } from '@/contexts/doc-cache-context'
 
 export default function DocPage() {
   const params = useParams()
   const id = params.id as string
   const doc = useQuery(api.nodes.get, { id: id as Id<'nodes'> })
   const [isSaving, setIsSaving] = useState(false)
+  const { toast, loading } = useToast()
+  const { getDoc, setDoc } = useDocCache()
+  const hasShownLoadingRef = useRef(false)
+  const prevIdRef = useRef<string | null>(null)
 
-  // Loading state
-  if (doc === undefined) {
+  // Get cached doc if available
+  const cachedDoc = getDoc(id)
+
+  // Show loading toast when switching documents
+  useEffect(() => {
+    if (id !== prevIdRef.current) {
+      prevIdRef.current = id
+      hasShownLoadingRef.current = false
+    }
+
+    // Show loading toast if doc is loading and we don't have a cache
+    if (doc === undefined && !cachedDoc && !hasShownLoadingRef.current) {
+      hasShownLoadingRef.current = true
+      loading({
+        title: 'Loading document',
+        description: 'Fetching content...',
+        duration: 1500,
+      })
+    }
+  }, [id, doc, cachedDoc, loading])
+
+  // Cache the doc when it loads
+  useEffect(() => {
+    if (doc && doc.type === 'doc') {
+      setDoc({
+        _id: doc._id as string,
+        title: doc.title,
+        content: doc.content || '',
+        icon: doc.icon ?? null,
+        parentId: (doc.parentId as string) ?? null,
+        tagIds: doc.tagIds,
+        status: doc.status ?? null,
+        ownerId: doc.ownerId ?? '',
+        orgId: doc.orgId ?? null,
+        type: 'doc',
+        cachedAt: Date.now(),
+      })
+    }
+  }, [doc, setDoc])
+
+  // Use cached doc while loading, or show skeleton if no cache
+  const displayDoc = doc ?? cachedDoc
+
+  // Loading state - only show if no cached version
+  if (displayDoc === undefined) {
     return (
       <div className="min-h-full">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -50,7 +98,7 @@ export default function DocPage() {
   }
 
   // Not found state
-  if (!doc || doc.type !== 'doc') {
+  if (doc === null || (doc && doc.type !== 'doc')) {
     return (
       <div className="flex items-center justify-center h-full">
         <EmptyState
@@ -72,21 +120,21 @@ export default function DocPage() {
       <div className="w-full max-w-5xl xl:max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <DocHeader
           doc={{
-            _id: doc._id,
-            title: doc.title,
-            parentId: doc.parentId,
-            icon: doc.icon,
-            tagIds: doc.tagIds,
-            status: doc.status,
-            ownerId: doc.ownerId,
-            orgId: doc.orgId,
+            _id: displayDoc._id as string,
+            title: displayDoc.title,
+            parentId: displayDoc.parentId as string | null ?? null,
+            icon: displayDoc.icon ?? null,
+            tagIds: displayDoc.tagIds,
+            status: displayDoc.status as 'draft' | 'in_review' | 'final' | undefined,
+            ownerId: displayDoc.ownerId ?? '',
+            orgId: displayDoc.orgId ?? undefined,
           }}
           isSaving={isSaving}
         />
         <TipTapEditor
-          docId={doc._id}
-          docTitle={doc.title}
-          content={doc.content}
+          docId={displayDoc._id as string}
+          docTitle={displayDoc.title}
+          content={displayDoc.content ?? ''}
           onSavingChange={setIsSaving}
         />
       </div>
