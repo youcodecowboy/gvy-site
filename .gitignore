@@ -34,5 +34,4 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# TipTap Pro auth token
-.npmrc
+# Note: .npmrc is committed with env var placeholders for TipTap Pro token
