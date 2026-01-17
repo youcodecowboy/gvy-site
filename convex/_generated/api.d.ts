@@ -16,6 +16,7 @@ import type * as flags from "../flags.js";
 import type * as mentions from "../mentions.js";
 import type * as migrations_migrateFlags from "../migrations/migrateFlags.js";
 import type * as nodes from "../nodes.js";
+import type * as presence from "../presence.js";
 import type * as tags from "../tags.js";
 import type * as threads from "../threads.js";
 import type * as versions from "../versions.js";
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   mentions: typeof mentions;
   "migrations/migrateFlags": typeof migrations_migrateFlags;
   nodes: typeof nodes;
+  presence: typeof presence;
   tags: typeof tags;
   threads: typeof threads;
   versions: typeof versions;

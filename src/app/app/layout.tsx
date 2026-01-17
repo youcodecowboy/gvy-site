@@ -5,12 +5,13 @@ import { ToastProvider } from '@/components/ui'
 import { CommandPaletteProvider } from '@/components/CommandPalette'
 import { DocCacheProvider } from '@/contexts/doc-cache-context'
 import { TokenCacheProvider } from '@/contexts/token-cache-context'
+import { PresenceProvider } from '@/contexts/presence-context'
 
 function AppContent({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
-      <div 
+      <div
         className={`
           flex flex-1 flex-col min-w-0
           transition-all duration-200 ease-in-out
@@ -34,13 +35,15 @@ export default function AppLayout({
     <ToastProvider>
       <TokenCacheProvider>
         <DocCacheProvider>
-          <CommandPaletteProvider>
-            <SidebarProvider>
-              <NavigationProvider>
-                <AppContent>{children}</AppContent>
-              </NavigationProvider>
-            </SidebarProvider>
-          </CommandPaletteProvider>
+          <PresenceProvider>
+            <CommandPaletteProvider>
+              <SidebarProvider>
+                <NavigationProvider>
+                  <AppContent>{children}</AppContent>
+                </NavigationProvider>
+              </SidebarProvider>
+            </CommandPaletteProvider>
+          </PresenceProvider>
         </DocCacheProvider>
       </TokenCacheProvider>
     </ToastProvider>

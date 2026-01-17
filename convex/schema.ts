@@ -359,6 +359,35 @@ export default defineSchema({
     .index("by_doc_version", ["docId", "majorVersion", "minorVersion"])
     .index("by_created", ["createdAt"]),
 
+  // User presence tracking for online indicator
+  presence: defineTable({
+    // Clerk user ID
+    userId: v.string(),
+
+    // User display info (denormalized for performance)
+    userName: v.string(),
+    userAvatar: v.optional(v.string()),
+    userColor: v.string(),
+
+    // Current location - what document/page they're viewing
+    currentDocId: v.optional(v.id("nodes")),
+    currentDocTitle: v.optional(v.string()),
+    currentPath: v.string(),
+
+    // Heartbeat timestamp - used to determine if user is still online
+    lastSeenAt: v.number(),
+
+    // Session ID to handle multiple tabs
+    sessionId: v.string(),
+
+    // Organization context (null for personal workspace)
+    orgId: v.optional(v.string()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_session", ["userId", "sessionId"])
+    .index("by_last_seen", ["lastSeenAt"])
+    .index("by_org", ["orgId"]),
+
   // Export history - tracks all document exports (PDF, DOCX)
   exportHistory: defineTable({
     // Document that was exported
