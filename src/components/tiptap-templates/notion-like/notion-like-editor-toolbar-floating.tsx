@@ -3,6 +3,7 @@ import { type Editor } from "@tiptap/react"
 import { MessageSquare } from "lucide-react"
 import { NewThreadPopover } from "@/components/tiptap-ui/thread-popover/thread-popover"
 import { FlagButton } from "@/components/tiptap-ui/flag-button"
+import { ThreadButton } from "@/components/threads/ThreadButton"
 
 // --- Hooks ---
 import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
@@ -108,6 +109,7 @@ export function NotionToolbarFloating({ docId }: NotionToolbarFloatingProps) {
           />
           <ColorTextPopover hideWhenUnavailable={true} />
           <CommentButton editor={editor} />
+          <ThreadButton editor={editor} docId={docId} />
           <FlagButton editor={editor} docId={docId} />
         </ToolbarGroup>
 

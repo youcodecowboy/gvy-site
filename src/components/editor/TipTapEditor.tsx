@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { useEditor, EditorContent, EditorContext } from '@tiptap/react'
-import { useMutation } from 'convex/react'
+import { useMutation, useQuery } from 'convex/react'
 import { TiptapCollabProvider } from '@tiptap-pro/provider'
 import { Doc as YDoc } from 'yjs'
 import { api } from '../../../convex/_generated/api'
@@ -72,6 +72,7 @@ import { TextAlignButton } from '@/components/tiptap-ui/text-align-button'
 import { UndoRedoButton } from '@/components/tiptap-ui/undo-redo-button'
 import { MessageSquare, X } from 'lucide-react'
 import { ThreadPopover } from '@/components/tiptap-ui/thread-popover/thread-popover'
+import { ThreadsPanel } from '@/components/threads/ThreadsPanel'
 
 // --- Notion-like UI Components ---
 import { EmojiDropdownMenu } from '@/components/tiptap-ui/emoji-dropdown-menu'
@@ -115,6 +116,7 @@ import '@/components/tiptap-node/section-link-node/section-link-node.scss'
 // --- Template Styles ---
 import '@/components/tiptap-templates/notion-like/notion-like-editor.scss'
 import '@/components/editor/comments.scss'
+import '@/components/threads/thread-styles.scss'
 
 interface TipTapEditorProps {
   docId: string
@@ -124,6 +126,9 @@ interface TipTapEditorProps {
   scrollToPosition?: { from: number; to: number }
   aiToken?: string | null
   collabToken?: string | null
+  showThreads?: boolean
+  onToggleThreads?: () => void
+  threadCount?: number
 }
 
 interface CollaboratorInfo {
@@ -137,14 +142,14 @@ interface CollaboratorInfo {
 }
 
 // Main Toolbar Content Component
-function MainToolbarContent({ 
+function MainToolbarContent({
   isMobile,
   showComments,
   onToggleComments,
   commentCount = 0,
   hasProvider = false,
   docTitle,
-}: { 
+}: {
   isMobile: boolean
   showComments?: boolean
   onToggleComments?: () => void
@@ -219,8 +224,8 @@ function MainToolbarContent({
               onClick={onToggleComments}
               className={`
                 flex items-center gap-1.5 px-2 py-1 rounded text-sm transition-colors
-                ${showComments 
-                  ? 'bg-primary text-primary-foreground' 
+                ${showComments
+                  ? 'bg-primary text-primary-foreground'
                   : 'hover:bg-accent text-muted-foreground hover:text-foreground'
                 }
               `}
@@ -282,6 +287,9 @@ function TipTapEditorInner({
   scrollToPosition,
   aiToken,
   collabToken,
+  showThreads: showThreadsProp,
+  onToggleThreads: onToggleThreadsProp,
+  threadCount: threadCountProp,
 }: TipTapEditorProps & {
   aiToken: string | null
   collabToken: string | null
@@ -298,11 +306,26 @@ function TipTapEditorInner({
   const [collaborators, setCollaborators] = useState<CollaboratorInfo[]>([])
   const [isConnected, setIsConnected] = useState(false)
   const [showComments, setShowComments] = useState(false)
+  const [showThreadsInternal, setShowThreadsInternal] = useState(false)
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null)
+
+  // Use controlled props when provided, otherwise use internal state
+  const isThreadsControlled = showThreadsProp !== undefined
+  const showThreads = isThreadsControlled ? showThreadsProp : showThreadsInternal
+  const setShowThreads = isThreadsControlled
+    ? (value: boolean | ((prev: boolean) => boolean)) => {
+        // When controlled, we need to call the prop handler to toggle
+        const newValue = typeof value === 'function' ? value(showThreadsProp!) : value
+        if (newValue !== showThreadsProp && onToggleThreadsProp) {
+          onToggleThreadsProp()
+        }
+      }
+    : setShowThreadsInternal
   const [threads, setThreads] = useState<any[]>([])
   const [threadPopoverPosition, setThreadPopoverPosition] = useState<{ top: number; left: number } | null>(null)
   const [isSynced, setIsSynced] = useState(false)
   const [isCloudEmpty, setIsCloudEmpty] = useState(false)
+  const [pendingScrollPosition, setPendingScrollPosition] = useState<{ from: number; to: number } | null>(null)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
   // Use refs for values accessed in callbacks to prevent editor recreation
@@ -782,6 +805,46 @@ function TipTapEditorInner({
     }
   }, [editor, user, docId, docTitle, createComment])
 
+  // Handle navigation from thread anchor to document position
+  const handleNavigateToAnchor = useCallback((anchorData: { from: number; to: number }) => {
+    // Close threads panel first
+    setShowThreads(false)
+    // Store the position to scroll to after the panel closes
+    setPendingScrollPosition(anchorData)
+  }, [])
+
+  // Effect to scroll to anchor position after threads panel closes
+  useEffect(() => {
+    if (pendingScrollPosition && !showThreads && editor) {
+      const timeout = setTimeout(() => {
+        try {
+          const { from, to } = pendingScrollPosition
+          const docSize = editor.state.doc.content.size
+
+          // Validate position is within document bounds
+          if (from >= 0 && to <= docSize && from < to) {
+            // Set selection to highlight the anchored text
+            editor.chain().focus().setTextSelection({ from, to }).run()
+
+            // Scroll the selection into view
+            const coords = editor.view.coordsAtPos(from)
+            if (coords) {
+              window.scrollTo({
+                top: coords.top - 200, // Offset from top for better visibility
+                behavior: 'smooth',
+              })
+            }
+          }
+        } catch (error) {
+          console.error('Failed to scroll to anchor position:', error)
+        }
+        setPendingScrollPosition(null)
+      }, 100) // Small delay to let the panel close
+
+      return () => clearTimeout(timeout)
+    }
+  }, [pendingScrollPosition, showThreads, editor])
+
   if (!editor) {
     return (
       <div className="min-h-[300px] animate-pulse">
@@ -800,16 +863,36 @@ function TipTapEditorInner({
 
   const unresolvedThreads = threads.filter((t: any) => !t.resolvedAt)
 
+  // Toggle handlers with mutual exclusivity
+  const handleToggleComments = () => {
+    if (!showComments) {
+      setShowThreads(false) // Close threads when opening comments
+    }
+    setShowComments(!showComments)
+  }
+
+  const handleToggleThreads = () => {
+    if (!showThreads) {
+      setShowComments(false) // Close comments when opening threads
+    }
+    // Use prop handler if controlled, otherwise use internal state
+    if (onToggleThreadsProp) {
+      onToggleThreadsProp()
+    } else {
+      setShowThreadsInternal(!showThreads)
+    }
+  }
+
   return (
     <div className="notion-like-editor-wrapper flex">
       <div className={`flex-1 ${showComments ? 'mr-80' : ''} transition-all duration-200`}>
         <EditorContext.Provider value={{ editor }}>
           {/* Fixed Toolbar */}
           <Toolbar ref={toolbarRef} className="mb-4 sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-            <MainToolbarContent 
+            <MainToolbarContent
               isMobile={isMobile}
               showComments={showComments}
-              onToggleComments={() => setShowComments(!showComments)}
+              onToggleComments={handleToggleComments}
               commentCount={unresolvedThreads.length}
               hasProvider={!!provider}
               docTitle={docTitle}
@@ -826,39 +909,52 @@ function TipTapEditorInner({
             )}
           </Toolbar>
 
-          {/* Editor Content with Notion-like UI */}
-          <EditorContent
-            editor={editor}
-            className="notion-like-editor-content"
-          >
-            <DragContextMenu />
-            <AiMenu />
-            <EmojiDropdownMenu />
-            <MentionDropdownMenu />
-            <SlashDropdownMenu />
-            <NotionToolbarFloating docId={docId} />
-          </EditorContent>
+          {/* Conditionally show editor or threads panel */}
+          {showThreads ? (
+            <ThreadsPanel
+              docId={docId as Id<'nodes'>}
+              docTitle={docTitle}
+              isOpen={showThreads}
+              onClose={() => setShowThreads(false)}
+              onNavigateToAnchor={handleNavigateToAnchor}
+            />
+          ) : (
+            <>
+              {/* Editor Content with Notion-like UI */}
+              <EditorContent
+                editor={editor}
+                className="notion-like-editor-content"
+              >
+                <DragContextMenu />
+                <AiMenu />
+                <EmojiDropdownMenu />
+                <MentionDropdownMenu />
+                <SlashDropdownMenu />
+                <NotionToolbarFloating docId={docId} />
+              </EditorContent>
 
-          {/* Table UI */}
-          <TableExtendRowColumnButtons />
-          <TableHandle />
-          <TableSelectionOverlay
-            showResizeHandles={true}
-            cellMenu={(props) => (
-              <TableCellHandleMenu
-                editor={props.editor}
-                onMouseDown={(e) => props.onResizeStart?.('br')(e)}
+              {/* Table UI */}
+              <TableExtendRowColumnButtons />
+              <TableHandle />
+              <TableSelectionOverlay
+                showResizeHandles={true}
+                cellMenu={(props) => (
+                  <TableCellHandleMenu
+                    editor={props.editor}
+                    onMouseDown={(e) => props.onResizeStart?.('br')(e)}
+                  />
+                )}
               />
-            )}
-          />
 
-          {/* Character Count */}
-          <div className="mt-4 pt-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
-            <div className="flex items-center gap-4">
-              <span>{characters} characters</span>
-              <span>{words} words</span>
-            </div>
-          </div>
+              {/* Character Count */}
+              <div className="mt-4 pt-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
+                <div className="flex items-center gap-4">
+                  <span>{characters} characters</span>
+                  <span>{words} words</span>
+                </div>
+              </div>
+            </>
+          )}
         </EditorContext.Provider>
       </div>
 
@@ -949,6 +1045,8 @@ function TipTapEditorInner({
         </div>
       )}
 
+      {/* Threads Panel is now rendered as full-page replacement above */}
+
       {/* Thread Popover for viewing/editing existing threads */}
       {selectedThreadId && threadPopoverPosition && provider && (
         <ThreadPopover
@@ -1028,6 +1126,9 @@ export function TipTapEditor(props: TipTapEditorProps) {
         scrollToPosition={props.scrollToPosition}
         aiToken={aiToken}
         collabToken={collabToken}
+        showThreads={props.showThreads}
+        onToggleThreads={props.onToggleThreads}
+        threadCount={props.threadCount}
       />
     </UserProvider>
   )

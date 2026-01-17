@@ -13,8 +13,10 @@ import type * as dashboard from "../dashboard.js";
 import type * as files from "../files.js";
 import type * as flags from "../flags.js";
 import type * as mentions from "../mentions.js";
+import type * as migrations_migrateFlags from "../migrations/migrateFlags.js";
 import type * as nodes from "../nodes.js";
 import type * as tags from "../tags.js";
+import type * as threads from "../threads.js";
 import type * as views from "../views.js";
 
 import type {
@@ -29,8 +31,10 @@ declare const fullApi: ApiFromModules<{
   files: typeof files;
   flags: typeof flags;
   mentions: typeof mentions;
+  "migrations/migrateFlags": typeof migrations_migrateFlags;
   nodes: typeof nodes;
   tags: typeof tags;
+  threads: typeof threads;
   views: typeof views;
 }>;
 

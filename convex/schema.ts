@@ -168,16 +168,19 @@ export default defineSchema({
     .index("by_doc", ["docId"])
     .index("by_doc_user", ["docId", "viewedByUserId"]),
 
-  // Private flags for documents
+  // Private flags for documents and folders
   flags: defineTable({
-    // Document that was flagged
-    docId: v.id("nodes"),
+    // Node (document or folder) that was flagged
+    nodeId: v.id("nodes"),
 
-    // Document title (for display in notifications)
-    docTitle: v.string(),
+    // Node title (for display in notifications)
+    nodeTitle: v.string(),
 
-    // Type: inline (text selection) or document (entire doc)
-    type: v.union(v.literal("inline"), v.literal("document")),
+    // Node type (doc or folder)
+    nodeType: v.union(v.literal("doc"), v.literal("folder")),
+
+    // Type: inline (text selection), document (entire doc), or folder
+    type: v.union(v.literal("inline"), v.literal("document"), v.literal("folder")),
 
     // For inline flags: selected text info
     selectionData: v.optional(
@@ -209,5 +212,111 @@ export default defineSchema({
     .index("by_recipient", ["recipientId"])
     .index("by_recipient_unread", ["recipientId", "isRead"])
     .index("by_sender", ["senderId"])
-    .index("by_doc", ["docId"]),
+    .index("by_node", ["nodeId"]),
+
+  // Discussion threads (main topics for document discussions)
+  threads: defineTable({
+    // Document this thread belongs to
+    docId: v.id("nodes"),
+
+    // Thread title/topic
+    title: v.string(),
+
+    // Thread author
+    authorId: v.string(),
+    authorName: v.string(),
+
+    // Optional text anchor (threads can be doc-level or anchored to selection)
+    anchorData: v.optional(
+      v.object({
+        from: v.number(),
+        to: v.number(),
+        selectedText: v.string(),
+      })
+    ),
+
+    // Thread status
+    status: v.union(v.literal("open"), v.literal("resolved")),
+
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    resolvedAt: v.optional(v.number()),
+    resolvedBy: v.optional(v.string()),
+
+    // Organization scope
+    orgId: v.optional(v.string()),
+
+    // Denormalized counts for performance
+    replyCount: v.number(),
+    lastActivityAt: v.number(),
+  })
+    .index("by_doc", ["docId"])
+    .index("by_doc_status", ["docId", "status"])
+    .index("by_org", ["orgId"])
+    .index("by_last_activity", ["lastActivityAt"]),
+
+  // Thread replies (supports nested structure)
+  threadReplies: defineTable({
+    // Parent thread
+    threadId: v.id("threads"),
+
+    // For nested replies: parent reply ID (null = top-level)
+    parentReplyId: v.optional(v.id("threadReplies")),
+
+    // Reply author
+    authorId: v.string(),
+    authorName: v.string(),
+
+    // Reply content
+    content: v.string(),
+
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+
+    // Soft delete
+    isDeleted: v.optional(v.boolean()),
+
+    // Nesting depth (0 = top-level, 1+ = nested, cap at 3-4 for UI)
+    depth: v.number(),
+  })
+    .index("by_thread", ["threadId"])
+    .index("by_parent", ["parentReplyId"]),
+
+  // Thread notifications (for participant alerts)
+  threadNotifications: defineTable({
+    // Thread this notification is about
+    threadId: v.id("threads"),
+
+    // Document (for navigation)
+    docId: v.id("nodes"),
+    docTitle: v.string(),
+
+    // Recipient of notification
+    recipientId: v.string(),
+
+    // Who triggered this notification
+    triggeredByUserId: v.string(),
+    triggeredByUserName: v.string(),
+
+    // Notification type
+    type: v.union(v.literal("new_reply"), v.literal("thread_resolved")),
+
+    // Optional reference to specific reply
+    replyId: v.optional(v.id("threadReplies")),
+
+    // Thread title for display
+    threadTitle: v.string(),
+
+    // Timestamps
+    createdAt: v.number(),
+
+    // Read status
+    isRead: v.optional(v.boolean()),
+    readAt: v.optional(v.number()),
+  })
+    .index("by_recipient", ["recipientId"])
+    .index("by_recipient_unread", ["recipientId", "isRead"])
+    .index("by_thread", ["threadId"]),
 });

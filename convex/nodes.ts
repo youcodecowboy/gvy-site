@@ -607,6 +607,28 @@ export const updateDescription = mutation({
   },
 });
 
+// Helper function to extract text from TipTap JSON content
+function extractTextFromContent(content: any): string {
+  if (!content) return '';
+  if (typeof content === 'string') return content;
+
+  let text = '';
+  if (content.text) text += content.text;
+
+  if (Array.isArray(content.content)) {
+    for (const node of content.content) {
+      text += extractTextFromContent(node) + ' ';
+    }
+  }
+
+  return text;
+}
+
+// Helper function to count words accurately
+function countWords(text: string): number {
+  return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+}
+
 // Get folder statistics (recursive count of all descendants)
 export const getFolderStats = query({
   args: { id: v.id("nodes") },
@@ -636,10 +658,10 @@ export const getFolderStats = query({
       for (const child of children) {
         if (child.type === "doc") {
           docs++;
-          // Estimate word count from content if available
+          // Count actual words from TipTap content
           if (child.content) {
-            const text = JSON.stringify(child.content);
-            totalWords += text.split(/\s+/).length / 10; // Rough estimate
+            const text = extractTextFromContent(child.content);
+            totalWords += countWords(text);
           }
         } else {
           folders++;
@@ -678,6 +700,83 @@ export const getFolderStats = query({
   },
 });
 
+// Get all contributors to a folder (users who created or edited documents)
+export const getFolderContributors = query({
+  args: {
+    id: v.id("nodes"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return [];
+    }
+
+    const folder = await ctx.db.get(args.id);
+    if (!folder || folder.type !== "folder" || folder.isDeleted) {
+      return [];
+    }
+
+    const limit = args.limit ?? 8;
+
+    // Recursively get all descendant documents
+    const getDescendantDocs = async (parentId: typeof args.id): Promise<any[]> => {
+      const children = await ctx.db
+        .query("nodes")
+        .withIndex("by_parent", (q) => q.eq("parentId", parentId))
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .collect();
+
+      let docs: any[] = [];
+      for (const child of children) {
+        if (child.type === "doc") {
+          docs.push(child);
+        } else if (child.type === "folder") {
+          docs = [...docs, ...(await getDescendantDocs(child._id))];
+        }
+      }
+      return docs;
+    };
+
+    const allDocs = await getDescendantDocs(args.id);
+
+    // Aggregate contributors
+    const contributorMap = new Map<string, {
+      userId: string;
+      userName: string;
+      docCount: number;
+      lastActivity: number;
+      createdDocs: number;
+      editedDocs: number;
+    }>();
+
+    for (const doc of allDocs) {
+      // Track last editor
+      if (doc.updatedBy && doc.updatedByName && doc.updatedAt) {
+        const existing = contributorMap.get(doc.updatedBy);
+        if (existing) {
+          existing.editedDocs += 1;
+          existing.docCount += 1;
+          existing.lastActivity = Math.max(existing.lastActivity, doc.updatedAt);
+        } else {
+          contributorMap.set(doc.updatedBy, {
+            userId: doc.updatedBy,
+            userName: doc.updatedByName,
+            docCount: 1,
+            lastActivity: doc.updatedAt,
+            createdDocs: 0,
+            editedDocs: 1,
+          });
+        }
+      }
+    }
+
+    return Array.from(contributorMap.values())
+      .sort((a, b) => b.lastActivity - a.lastActivity)
+      .slice(0, limit);
+  },
+});
+
 // Get all descendants of a folder (for table of contents)
 export const getDescendants = query({
   args: { 
@@ -712,6 +811,10 @@ export const getDescendants = query({
           title: child.title,
           icon: child.icon,
           depth,
+          createdAt: child._creationTime,
+          updatedAt: child.updatedAt,
+          updatedBy: child.updatedBy,
+          updatedByName: child.updatedByName,
         };
 
         if (child.type === "folder") {

@@ -4,13 +4,14 @@ import { useState, useRef, useCallback } from 'react'
 import { Flag } from 'lucide-react'
 import { FlagPopover } from '@/components/tiptap-ui/flag-popover/flag-popover'
 import { useToast } from '@/components/ui'
+import { Button } from '@/components/ui'
 
-interface DocFlagButtonProps {
-  docId: string
-  docTitle: string
+interface FolderFlagButtonProps {
+  folderId: string
+  folderTitle: string
 }
 
-export function DocFlagButton({ docId, docTitle }: DocFlagButtonProps) {
+export function FolderFlagButton({ folderId, folderTitle }: FolderFlagButtonProps) {
   const [showPopover, setShowPopover] = useState(false)
   const [popoverPosition, setPopoverPosition] = useState<{ top: number; left: number } | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -29,26 +30,26 @@ export function DocFlagButton({ docId, docTitle }: DocFlagButtonProps) {
 
   const handleSuccess = useCallback(() => {
     toast({
-      title: 'Flag sent',
-      description: 'Your flag has been sent successfully.',
+      title: 'Folder flagged',
+      description: 'Your folder flag has been sent successfully.',
     })
   }, [toast])
 
   return (
     <>
-      <button
+      <Button
         ref={buttonRef}
+        size="sm"
+        variant="secondary"
+        leftIcon={<Flag className="h-4 w-4" />}
         onClick={handleClick}
-        className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors"
-        title="Flag this document for someone"
       >
-        <Flag className="h-3.5 w-3.5" />
-        <span>Flag</span>
-      </button>
+        Flag Folder
+      </Button>
       {showPopover && popoverPosition && (
         <FlagPopover
-          nodeId={docId}
-          type="document"
+          nodeId={folderId}
+          type="folder"
           position={popoverPosition}
           onClose={() => setShowPopover(false)}
           onSuccess={handleSuccess}

@@ -2,19 +2,20 @@
 
 import { useState, useEffect } from 'react'
 import { type Editor } from '@tiptap/react'
-import { Flag } from 'lucide-react'
+import { MessageSquarePlus } from 'lucide-react'
 import { Button } from '@/components/tiptap-ui-primitive/button'
-import { FlagPopover } from './flag-popover/flag-popover'
+import { CreateThreadDialog } from './CreateThreadDialog'
 
-interface FlagButtonProps {
+interface ThreadButtonProps {
   editor: Editor | null
   docId?: string
+  orgId?: string
 }
 
-export function FlagButton({ editor, docId }: FlagButtonProps) {
-  const [canFlag, setCanFlag] = useState(false)
-  const [showPopover, setShowPopover] = useState(false)
-  const [popoverPosition, setPopoverPosition] = useState<{ top: number; left: number } | null>(null)
+export function ThreadButton({ editor, docId, orgId }: ThreadButtonProps) {
+  const [canCreateThread, setCanCreateThread] = useState(false)
+  const [showDialog, setShowDialog] = useState(false)
+  const [dialogPosition, setDialogPosition] = useState<{ top: number; left: number } | null>(null)
   const [selectionData, setSelectionData] = useState<{
     from: number
     to: number
@@ -24,21 +25,21 @@ export function FlagButton({ editor, docId }: FlagButtonProps) {
   useEffect(() => {
     if (!editor) return
 
-    const updateCanFlag = () => {
+    const updateCanCreate = () => {
       const { from, to } = editor.state.selection
-      // Can flag if there's a text selection
-      setCanFlag(from !== to && editor.isEditable)
+      // Can create thread if there's a text selection
+      setCanCreateThread(from !== to && editor.isEditable)
     }
 
-    updateCanFlag()
-    editor.on('selectionUpdate', updateCanFlag)
+    updateCanCreate()
+    editor.on('selectionUpdate', updateCanCreate)
 
     return () => {
-      editor.off('selectionUpdate', updateCanFlag)
+      editor.off('selectionUpdate', updateCanCreate)
     }
   }, [editor])
 
-  if (!canFlag || !editor || !docId) {
+  if (!canCreateThread || !editor || !docId) {
     return null
   }
 
@@ -60,22 +61,22 @@ export function FlagButton({ editor, docId }: FlagButtonProps) {
       const end = editor.view.coordsAtPos(to)
 
       // Position below the selection
-      setPopoverPosition({
+      setDialogPosition({
         top: Math.max(start.bottom, end.bottom) + 8,
         left: Math.min(start.left, end.left),
       })
-      setShowPopover(true)
+      setShowDialog(true)
     } catch (e) {
       // Fallback to selection API
       const selection = window.getSelection()
       if (selection && selection.rangeCount > 0) {
         const range = selection.getRangeAt(0)
         const rect = range.getBoundingClientRect()
-        setPopoverPosition({
+        setDialogPosition({
           top: rect.bottom + 8,
           left: rect.left,
         })
-        setShowPopover(true)
+        setShowDialog(true)
       }
     }
   }
@@ -86,18 +87,18 @@ export function FlagButton({ editor, docId }: FlagButtonProps) {
         type="button"
         data-style="ghost"
         onClick={handleClick}
-        tooltip="Flag for someone"
+        tooltip="Add to Thread"
       >
-        <Flag className="tiptap-button-icon h-4 w-4" />
+        <MessageSquarePlus className="tiptap-button-icon h-4 w-4" />
       </Button>
-      {showPopover && popoverPosition && selectionData && (
-        <FlagPopover
-          nodeId={docId}
-          type="inline"
+      {showDialog && dialogPosition && selectionData && (
+        <CreateThreadDialog
+          docId={docId}
+          orgId={orgId}
           selectionData={selectionData}
-          position={popoverPosition}
+          position={dialogPosition}
           onClose={() => {
-            setShowPopover(false)
+            setShowDialog(false)
             setSelectionData(null)
           }}
         />

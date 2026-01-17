@@ -8,9 +8,10 @@ import type { Id } from '../../../convex/_generated/dataModel'
 
 interface FlagItem {
   _id: Id<'flags'>
-  docId: Id<'nodes'>
-  docTitle: string
-  type: 'inline' | 'document'
+  nodeId: Id<'nodes'>
+  nodeTitle: string
+  nodeType: 'doc' | 'folder'
+  type: 'inline' | 'document' | 'folder'
   selectionData?: {
     from: number
     to: number
@@ -56,7 +57,9 @@ export function FlagsPreview({ flags, unreadCount = 0 }: FlagsPreviewProps) {
 
   // Build URL with query params for inline flags
   const buildFlagUrl = (flag: FlagItem) => {
-    const baseUrl = `/app/doc/${flag.docId}`
+    const baseUrl = flag.nodeType === 'folder'
+      ? `/app/folder/${flag.nodeId}`
+      : `/app/doc/${flag.nodeId}`
     if (flag.type === 'inline' && flag.selectionData) {
       return `${baseUrl}?flag=${flag._id}&from=${flag.selectionData.from}&to=${flag.selectionData.to}`
     }
@@ -111,7 +114,7 @@ export function FlagsPreview({ flags, unreadCount = 0 }: FlagsPreviewProps) {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <p className="text-sm font-medium truncate">{flag.docTitle}</p>
+                <p className="text-sm font-medium truncate">{flag.nodeTitle}</p>
                 {!flag.isRead && (
                   <div className="h-2 w-2 rounded-full bg-orange-500 shrink-0" />
                 )}

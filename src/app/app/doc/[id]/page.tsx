@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
 import { FileText } from 'lucide-react'
@@ -19,6 +19,7 @@ export default function DocPage() {
   const id = params.id as string
   const doc = useQuery(api.nodes.get, { id: id as Id<'nodes'> })
   const [isSaving, setIsSaving] = useState(false)
+  const [showThreads, setShowThreads] = useState(false)
   const { toast, loading } = useToast()
   const { getDoc, setDoc } = useDocCache()
   const hasShownLoadingRef = useRef(false)
@@ -27,6 +28,9 @@ export default function DocPage() {
 
   // Use globally cached tokens (fetched once on app load, refreshed every 50min)
   const { aiToken, collabToken } = useTokenCache()
+
+  // Thread count for the header button
+  const threadCount = useQuery(api.threads.getThreadCount, { docId: id as Id<'nodes'> })
 
   // Flag query params
   const flagId = searchParams.get('flag')
@@ -123,6 +127,11 @@ export default function DocPage() {
   // Use cached doc while loading, or show skeleton if no cache
   const displayDoc = doc ?? cachedDoc
 
+  // Toggle threads panel
+  const handleToggleThreads = useCallback(() => {
+    setShowThreads((prev) => !prev)
+  }, [])
+
   // Loading state - only show if no cached version
   if (displayDoc === undefined) {
     return (
@@ -190,6 +199,9 @@ export default function DocPage() {
               orgId: displayDoc.orgId ?? undefined,
             }}
             isSaving={isSaving}
+            showThreads={showThreads}
+            onToggleThreads={handleToggleThreads}
+            threadCount={threadCount?.open ?? 0}
           />
           <TipTapEditor
             docId={displayDoc._id as string}
@@ -199,6 +211,9 @@ export default function DocPage() {
             scrollToPosition={flagFrom && flagTo ? { from: parseInt(flagFrom), to: parseInt(flagTo) } : undefined}
             aiToken={aiToken}
             collabToken={collabToken}
+            showThreads={showThreads}
+            onToggleThreads={handleToggleThreads}
+            threadCount={threadCount?.open ?? 0}
           />
         </div>
       </div>

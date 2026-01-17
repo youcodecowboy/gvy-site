@@ -143,6 +143,48 @@ export const getHomePageData = query({
 
     const unreadFlagCount = unreadFlags.length;
 
+    // Get recent threads from accessible documents
+    const allThreads = await ctx.db
+      .query("threads")
+      .withIndex("by_last_activity")
+      .order("desc")
+      .take(50);
+
+    const recentThreads = allThreads
+      .filter((thread) => accessibleDocIds.has(thread.docId))
+      .slice(0, 6)
+      .map((thread) => ({
+        _id: thread._id,
+        docId: thread.docId,
+        title: thread.title,
+        authorName: thread.authorName,
+        status: thread.status,
+        replyCount: thread.replyCount,
+        lastActivityAt: thread.lastActivityAt,
+        anchorData: thread.anchorData,
+      }));
+
+    // Get doc titles for threads
+    const threadsWithDocTitles = await Promise.all(
+      recentThreads.map(async (thread) => {
+        const doc = await ctx.db.get(thread.docId);
+        return {
+          ...thread,
+          docTitle: doc?.title || "Untitled",
+        };
+      })
+    );
+
+    // Get unread thread notifications for current user
+    const unreadThreadNotifications = await ctx.db
+      .query("threadNotifications")
+      .withIndex("by_recipient_unread", (q) =>
+        q.eq("recipientId", userId).eq("isRead", false)
+      )
+      .collect();
+
+    const unreadThreadNotificationCount = unreadThreadNotifications.length;
+
     return {
       userName,
       userId,
@@ -166,6 +208,8 @@ export const getHomePageData = query({
       recentComments,
       unreadFlags: recentUnreadFlags,
       unreadFlagCount,
+      recentThreads: threadsWithDocTitles,
+      unreadThreadNotificationCount,
       hasOrgAccess: !!args.orgId,
     };
   },

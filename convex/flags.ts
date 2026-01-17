@@ -4,8 +4,8 @@ import { mutation, query } from "./_generated/server";
 // Create a new flag
 export const createFlag = mutation({
   args: {
-    docId: v.id("nodes"),
-    type: v.union(v.literal("inline"), v.literal("document")),
+    nodeId: v.id("nodes"),
+    type: v.union(v.literal("inline"), v.literal("document"), v.literal("folder")),
     selectionData: v.optional(
       v.object({
         from: v.number(),
@@ -23,10 +23,10 @@ export const createFlag = mutation({
       throw new Error("Not authenticated");
     }
 
-    // Verify doc exists
-    const doc = await ctx.db.get(args.docId);
-    if (!doc || doc.isDeleted) {
-      throw new Error("Document not found");
+    // Verify node exists
+    const node = await ctx.db.get(args.nodeId);
+    if (!node || node.isDeleted) {
+      throw new Error("Node not found");
     }
 
     // Prevent self-flagging
@@ -39,8 +39,9 @@ export const createFlag = mutation({
       identity.name || (identity as any).nickname || "Unknown";
 
     const flagId = await ctx.db.insert("flags", {
-      docId: args.docId,
-      docTitle: doc.title,
+      nodeId: args.nodeId,
+      nodeTitle: node.title,
+      nodeType: node.type,
       type: args.type,
       selectionData: args.selectionData,
       senderId,

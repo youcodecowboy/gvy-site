@@ -1,18 +1,19 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { 
-  Folder, 
-  FileText, 
-  Plus, 
-  FolderPlus, 
+import {
+  Folder,
+  FileText,
+  Plus,
+  FolderPlus,
   ChevronRight,
   Clock,
   Files,
   FolderOpen,
   Hash,
+  User,
 } from 'lucide-react'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '../../../../../convex/_generated/api'
@@ -23,21 +24,36 @@ import { useToast } from '@/components/ui'
 import { TagsInput } from '@/components/editor'
 import { IconPicker } from '@/components/editor'
 import { usePrefetch } from '@/hooks/usePrefetch'
+import { ContributorsPreview } from '@/components/dashboard/ContributorsPreview'
+import { FolderMentionsIndicator } from '@/components/dashboard/FolderMentionsIndicator'
+import { FolderMetadata } from '@/components/dashboard/FolderMetadata'
+import { FolderFlagButton } from '@/components/editor/FolderFlagButton'
 
 // Simple description editor (plain textarea for now, can be upgraded to TipTap later)
-function DescriptionEditor({ 
-  description, 
-  onSave 
-}: { 
+function DescriptionEditor({
+  description,
+  onSave
+}: {
   description: string
-  onSave: (desc: string) => void 
+  onSave: (desc: string) => void
 }) {
   const [value, setValue] = useState(description)
   const [isFocused, setIsFocused] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     setValue(description)
   }, [description])
+
+  // Auto-expand textarea based on content
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+
+    textarea.style.height = 'auto'
+    const newHeight = Math.min(textarea.scrollHeight, 300) // 300px max
+    textarea.style.height = `${newHeight}px`
+  }, [value])
 
   const handleBlur = () => {
     setIsFocused(false)
@@ -49,13 +65,14 @@ function DescriptionEditor({
   return (
     <div className="mb-6">
       <textarea
+        ref={textareaRef}
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onFocus={() => setIsFocused(true)}
         onBlur={handleBlur}
         placeholder="Add a description for this folder..."
         className={`
-          w-full min-h-[80px] p-3 rounded-lg border bg-background text-sm resize-none
+          w-full min-h-[80px] max-h-[300px] p-3 rounded-lg border bg-background text-sm resize-none overflow-y-auto
           placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20
           ${isFocused ? 'border-primary' : 'border-border'}
         `}
@@ -65,39 +82,65 @@ function DescriptionEditor({
 }
 
 // Table of contents component
-function TableOfContents({ 
-  items, 
-  currentFolderId 
-}: { 
+function TableOfContents({
+  items,
+  currentFolderId
+}: {
   items: any[]
-  currentFolderId: string 
+  currentFolderId: string
 }) {
   if (items.length === 0) return null
+
+  const formatTime = (timestamp: number | undefined) => {
+    if (!timestamp) return ''
+    const diffHours = Math.floor((Date.now() - timestamp) / (1000 * 60 * 60))
+    const diffDays = Math.floor((Date.now() - timestamp) / (1000 * 60 * 60 * 24))
+    if (diffHours < 1) return 'just now'
+    if (diffHours < 24) return `${diffHours}h ago`
+    if (diffDays < 7) return `${diffDays}d ago`
+    return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
 
   const renderItem = (item: any, depth: number = 0) => {
     const paddingLeft = depth * 16 + 8
     const isFolder = item.type === 'folder'
     const href = isFolder ? `/app/folder/${item._id}` : `/app/doc/${item._id}`
+    const lastUpdated = item.updatedAt || item.createdAt
 
     return (
       <div key={item._id}>
         <Link
           href={href}
-          className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-accent transition-colors text-sm group"
-          style={{ paddingLeft }}
+          className="flex items-center gap-3 py-2.5 px-2 rounded hover:bg-accent transition-colors text-sm group border-b border-border/40"
         >
-          {item.icon ? (
-            <span className="text-sm">{item.icon}</span>
-          ) : isFolder ? (
-            <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
-          ) : (
-            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+          {/* Icon + Title */}
+          <div className="flex items-center gap-2 flex-1 min-w-0" style={{ paddingLeft }}>
+            {item.icon ? (
+              <span className="text-sm shrink-0">{item.icon}</span>
+            ) : isFolder ? (
+              <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
+            ) : (
+              <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+            )}
+            <span className="truncate text-foreground group-hover:text-primary transition-colors font-medium">
+              {item.title}
+            </span>
+          </div>
+
+          {/* Last Editor - Hidden on mobile */}
+          {item.updatedByName && (
+            <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground w-32 shrink-0">
+              <User className="h-3 w-3" />
+              <span className="truncate">{item.updatedByName}</span>
+            </div>
           )}
-          <span className="truncate text-foreground group-hover:text-primary transition-colors">
-            {item.title}
-          </span>
-          {isFolder && item.children?.length > 0 && (
-            <ChevronRight className="h-3 w-3 text-muted-foreground ml-auto" />
+
+          {/* Last Updated - Hidden on small screens */}
+          {lastUpdated && (
+            <div className="hidden md:flex items-center gap-1 text-xs text-muted-foreground w-24 shrink-0">
+              <Clock className="h-3 w-3" />
+              <span>{formatTime(lastUpdated)}</span>
+            </div>
           )}
         </Link>
         {item.children?.map((child: any) => renderItem(child, depth + 1))}
@@ -108,7 +151,13 @@ function TableOfContents({
   return (
     <div className="border rounded-lg bg-card">
       <div className="px-4 py-3 border-b">
-        <h3 className="text-sm font-medium">Contents</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium">Contents</h3>
+          <div className="hidden sm:flex items-center gap-4 text-xs text-muted-foreground">
+            <span className="w-32">Last Editor</span>
+            <span className="hidden md:block w-24">Updated</span>
+          </div>
+        </div>
       </div>
       <div className="p-2 max-h-[400px] overflow-y-auto">
         {items.map((item) => renderItem(item))}
@@ -177,6 +226,8 @@ export default function FolderPage() {
   const children = useQuery(api.nodes.getChildren, { parentId: id as Id<'nodes'> })
   const stats = useQuery(api.nodes.getFolderStats, { id: id as Id<'nodes'> })
   const descendants = useQuery(api.nodes.getDescendants, { id: id as Id<'nodes'>, maxDepth: 3 })
+  const contributors = useQuery(api.nodes.getFolderContributors, { id: id as Id<'nodes'> })
+  const folderMentions = useQuery(api.mentions.getFolderUnreadMentions, { folderId: id as Id<'nodes'> })
   
   // Mutations
   const createNode = useMutation(api.nodes.create)
@@ -297,7 +348,7 @@ export default function FolderPage() {
   // Loading state
   if (folder === undefined || children === undefined) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="p-6 max-w-6xl mx-auto">
         <div className="mb-6">
           <Skeleton className="h-10 w-[300px] mb-2" />
           <Skeleton className="h-4 w-[150px]" />
@@ -338,7 +389,7 @@ export default function FolderPage() {
   const description = typeof folder.description === 'string' ? folder.description : ''
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-start gap-3 mb-3">
@@ -366,7 +417,7 @@ export default function FolderPage() {
               onBlur={handleTitleBlur}
               onKeyDown={handleTitleKeyDown}
               placeholder="Folder name"
-              className="w-full text-2xl font-bold bg-transparent border-0 p-0 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-0"
+              className="w-full text-3xl font-bold bg-transparent border-0 p-0 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-0"
             />
             
             {/* Tags */}
@@ -396,17 +447,51 @@ export default function FolderPage() {
           >
             New Document
           </Button>
+          <FolderFlagButton
+            folderId={id}
+            folderTitle={folder.title}
+          />
         </div>
       </div>
 
       {/* Statistics */}
       <FolderStatistics stats={stats} />
 
-      {/* Description */}
-      <DescriptionEditor
-        description={description}
-        onSave={handleDescriptionSave}
-      />
+      {/* Two-column layout for Description/Metadata and Contributors */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Left column: Description + Metadata */}
+        <div className="space-y-6">
+          {/* Description */}
+          <div>
+            <DescriptionEditor
+              description={description}
+              onSave={handleDescriptionSave}
+            />
+          </div>
+
+          {/* Metadata */}
+          {folder && (
+            <FolderMetadata folder={folder} />
+          )}
+        </div>
+
+        {/* Right column: Contributors */}
+        <div>
+          {contributors && contributors.length > 0 && (
+            <ContributorsPreview contributors={contributors} />
+          )}
+        </div>
+      </div>
+
+      {/* Folder mentions indicator */}
+      {folderMentions && folderMentions.count > 0 && (
+        <div className="mb-6">
+          <FolderMentionsIndicator
+            count={folderMentions.count}
+            mentions={folderMentions.mentions}
+          />
+        </div>
+      )}
 
       {/* Table of Contents or Empty State */}
       {sortedChildren.length === 0 && (!descendants || descendants.length === 0) ? (

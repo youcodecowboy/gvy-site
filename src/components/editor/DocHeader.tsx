@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { Check, Loader2, Lock, Users, FileText } from 'lucide-react'
+import { Check, Loader2, Lock, Users, FileText, MessageSquareMore, ChevronRight } from 'lucide-react'
 import { useMutation, useQuery } from 'convex/react'
 import { useUser, useOrganization } from '@clerk/nextjs'
 import { api } from '../../../convex/_generated/api'
@@ -26,9 +26,12 @@ interface DocHeaderProps {
     orgId?: string
   }
   isSaving: boolean
+  showThreads?: boolean
+  onToggleThreads?: () => void
+  threadCount?: number
 }
 
-export function DocHeader({ doc, isSaving }: DocHeaderProps) {
+export function DocHeader({ doc, isSaving, showThreads, onToggleThreads, threadCount = 0 }: DocHeaderProps) {
   const { user } = useUser()
   const { organization } = useOrganization()
   const [title, setTitle] = useState(doc.title)
@@ -195,18 +198,18 @@ export function DocHeader({ doc, isSaving }: DocHeaderProps) {
             disabled={isTogglingShare || !organization}
             className={`
               flex items-center gap-1 px-2 py-0.5 text-xs rounded transition-colors
-              ${isPrivate 
-                ? 'bg-muted hover:bg-muted/80' 
+              ${isPrivate
+                ? 'bg-muted hover:bg-muted/80'
                 : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50'
               }
               ${!organization ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
               ${isTogglingShare ? 'opacity-50' : ''}
             `}
             title={
-              !organization 
-                ? 'Join an organization to share documents' 
-                : isPrivate 
-                  ? 'Click to share with organization' 
+              !organization
+                ? 'Join an organization to share documents'
+                : isPrivate
+                  ? 'Click to share with organization'
                   : 'Click to make private'
             }
           >
@@ -219,6 +222,30 @@ export function DocHeader({ doc, isSaving }: DocHeaderProps) {
             )}
             <span>{isPrivate ? 'Private' : 'Shared'}</span>
           </button>
+
+          {/* Threads toggle */}
+          {onToggleThreads && (
+            <button
+              onClick={onToggleThreads}
+              className={`
+                flex items-center gap-1 px-2 py-0.5 text-xs rounded transition-colors
+                ${showThreads
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted hover:bg-muted/80'
+                }
+              `}
+              title={showThreads ? 'Close threads' : 'View threads'}
+            >
+              <MessageSquareMore className="h-3 w-3" />
+              <span>Threads</span>
+              {threadCount > 0 && (
+                <span className={`px-1 py-0.5 rounded-full text-[10px] leading-none font-medium ${showThreads ? 'bg-primary-foreground/20' : 'bg-background'}`}>
+                  {threadCount}
+                </span>
+              )}
+              <ChevronRight className={`h-3 w-3 transition-transform ${showThreads ? 'rotate-90' : ''}`} />
+            </button>
+          )}
         </div>
       </div>
 

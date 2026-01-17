@@ -238,3 +238,57 @@ export const deleteMention = mutation({
     await ctx.db.delete(args.mentionId);
   },
 });
+
+// Get unread mentions for all documents in a folder
+export const getFolderUnreadMentions = query({
+  args: {
+    folderId: v.id("nodes"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return { count: 0, mentions: [] };
+    }
+
+    const userId = identity.subject;
+
+    // Get all descendant doc IDs recursively
+    const getDescendantDocIds = async (parentId: Id<"nodes">): Promise<Id<"nodes">[]> => {
+      const children = await ctx.db
+        .query("nodes")
+        .withIndex("by_parent", (q) => q.eq("parentId", parentId))
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .collect();
+
+      let docIds: Id<"nodes">[] = [];
+      for (const child of children) {
+        if (child.type === "doc") {
+          docIds.push(child._id);
+        } else if (child.type === "folder") {
+          docIds = [...docIds, ...(await getDescendantDocIds(child._id))];
+        }
+      }
+      return docIds;
+    };
+
+    const docIds = await getDescendantDocIds(args.folderId);
+
+    // Get all unread mentions for current user
+    const allUnreadMentions = await ctx.db
+      .query("mentions")
+      .withIndex("by_mentioned_user_unread", (q) =>
+        q.eq("mentionedUserId", userId).eq("isRead", false)
+      )
+      .collect();
+
+    // Filter to mentions in this folder's documents
+    const folderMentions = allUnreadMentions.filter(mention =>
+      docIds.includes(mention.docId)
+    );
+
+    return {
+      count: folderMentions.length,
+      mentions: folderMentions.slice(0, 5), // First 5 for preview
+    };
+  },
+});

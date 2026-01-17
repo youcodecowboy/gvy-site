@@ -2,16 +2,14 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Flag, Send, X, Loader2 } from 'lucide-react'
+import { MessageSquarePlus, Send, X, Loader2, Link2 } from 'lucide-react'
 import { useMutation } from 'convex/react'
-import { useUser } from '@clerk/nextjs'
-import { api } from '../../../../convex/_generated/api'
-import type { Id } from '../../../../convex/_generated/dataModel'
-import { MemberSelector, type Member } from './member-selector'
+import { api } from '../../../convex/_generated/api'
+import type { Id } from '../../../convex/_generated/dataModel'
 
-interface FlagPopoverProps {
-  nodeId: string
-  type: 'inline' | 'document' | 'folder'
+interface CreateThreadDialogProps {
+  docId: string
+  orgId?: string
   selectionData?: {
     from: number
     to: number
@@ -19,31 +17,29 @@ interface FlagPopoverProps {
   }
   position: { top: number; left: number } | null
   onClose: () => void
-  onSuccess?: () => void
+  onSuccess?: (threadId: Id<'threads'>) => void
 }
 
-export function FlagPopover({
-  nodeId,
-  type,
+export function CreateThreadDialog({
+  docId,
+  orgId,
   selectionData,
   position,
   onClose,
   onSuccess,
-}: FlagPopoverProps) {
-  const [message, setMessage] = useState('')
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null)
+}: CreateThreadDialogProps) {
+  const [title, setTitle] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { user } = useUser()
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  const createFlag = useMutation(api.flags.createFlag)
+  const createThread = useMutation(api.threads.createThread)
 
-  // Focus textarea on mount
+  // Focus input on mount
   useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.focus()
+    if (inputRef.current) {
+      inputRef.current.focus()
     }
   }, [])
 
@@ -72,8 +68,8 @@ export function FlagPopover({
   }, [onClose])
 
   const handleSubmit = useCallback(async () => {
-    if (!message.trim() || !selectedMember) {
-      setError('Please select a recipient and enter a message')
+    if (!title.trim()) {
+      setError('Please enter a thread title')
       return
     }
 
@@ -81,23 +77,21 @@ export function FlagPopover({
     setError(null)
 
     try {
-      await createFlag({
-        nodeId: nodeId as Id<'nodes'>,
-        type,
-        selectionData: type === 'inline' ? selectionData : undefined,
-        recipientId: selectedMember.id,
-        recipientName: selectedMember.name,
-        message: message.trim(),
+      const threadId = await createThread({
+        docId: docId as Id<'nodes'>,
+        title: title.trim(),
+        anchorData: selectionData,
+        orgId,
       })
-      onSuccess?.()
+      onSuccess?.(threadId)
       onClose()
     } catch (err) {
-      console.error('Failed to create flag:', err)
-      setError(err instanceof Error ? err.message : 'Failed to send flag')
+      console.error('Failed to create thread:', err)
+      setError(err instanceof Error ? err.message : 'Failed to create thread')
     } finally {
       setIsSubmitting(false)
     }
-  }, [message, selectedMember, createFlag, nodeId, type, selectionData, onSuccess, onClose])
+  }, [title, createThread, docId, selectionData, orgId, onSuccess, onClose])
 
   if (!position) return null
 
@@ -112,10 +106,8 @@ export function FlagPopover({
     >
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/50">
-        <Flag className="h-4 w-4 text-orange-500" />
-        <span className="text-sm font-medium">
-          {type === 'inline' ? 'Flag Selection' : 'Flag Document'}
-        </span>
+        <MessageSquarePlus className="h-4 w-4 text-primary" />
+        <span className="text-sm font-medium">New Thread</span>
         <button
           onClick={onClose}
           className="ml-auto p-1 hover:bg-accent rounded transition-colors"
@@ -125,10 +117,13 @@ export function FlagPopover({
       </div>
 
       <div className="p-3 space-y-3">
-        {/* Selected text preview for inline flags */}
-        {type === 'inline' && selectionData?.selectedText && (
-          <div className="bg-muted/50 rounded-md p-2 border-l-2 border-orange-500">
-            <p className="text-xs text-muted-foreground mb-1">Selected text:</p>
+        {/* Selected text preview */}
+        {selectionData?.selectedText && (
+          <div className="bg-muted/50 rounded-md p-2 border-l-2 border-primary">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+              <Link2 className="h-3 w-3" />
+              <span>Anchored to:</span>
+            </div>
             <p className="text-sm line-clamp-2 italic">
               "{selectionData.selectedText.length > 100
                 ? selectionData.selectedText.slice(0, 100) + '...'
@@ -137,36 +132,24 @@ export function FlagPopover({
           </div>
         )}
 
-        {/* Member selector */}
+        {/* Title input */}
         <div>
           <label className="block text-xs text-muted-foreground mb-1.5">
-            Send to:
+            Thread title:
           </label>
-          <MemberSelector
-            selectedMember={selectedMember}
-            onSelect={setSelectedMember}
-            excludeUserId={user?.id}
-          />
-        </div>
-
-        {/* Message input */}
-        <div>
-          <label className="block text-xs text-muted-foreground mb-1.5">
-            Message:
-          </label>
-          <textarea
-            ref={textareaRef}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
+          <input
+            ref={inputRef}
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && e.metaKey) {
+              if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
                 handleSubmit()
               }
             }}
-            placeholder="Why are you flagging this?"
-            rows={3}
-            className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+            placeholder="What's this discussion about?"
+            className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary"
             disabled={isSubmitting}
           />
         </div>
@@ -188,18 +171,18 @@ export function FlagPopover({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={!message.trim() || !selectedMember || isSubmitting}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-orange-500 text-white rounded-md hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            disabled={!title.trim() || isSubmitting}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isSubmitting ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                <span>Sending...</span>
+                <span>Creating...</span>
               </>
             ) : (
               <>
                 <Send className="h-3.5 w-3.5" />
-                <span>Send Flag</span>
+                <span>Create Thread</span>
               </>
             )}
           </button>

@@ -1,0 +1,833 @@
+// ============================================================================
+// Thread Inline Panel Styles (replaces editor content area)
+// ============================================================================
+
+.threads-panel-fullpage {
+  display: flex;
+  flex-direction: column;
+  min-height: 400px;
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.threads-panel-header-full {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 0;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid hsl(var(--border));
+
+  @media (max-width: 640px) {
+    padding: 0.75rem 0;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+}
+
+.threads-panel-content-full {
+  flex: 1;
+
+  @media (max-width: 640px) {
+    padding: 0;
+  }
+}
+
+.threads-loading-full {
+  padding: 2rem;
+}
+
+.threads-empty-full {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  padding: 2rem;
+}
+
+.threads-list-full {
+  max-width: 48rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+// ============================================================================
+// Thread Card (Full Page List)
+// ============================================================================
+
+.thread-card-full {
+  padding: 1.25rem;
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background-color: hsl(var(--accent) / 0.5);
+    border-color: hsl(var(--accent));
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  }
+}
+
+.thread-card-full-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.thread-avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.8) 100%);
+  color: hsl(var(--primary-foreground));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.thread-avatar-small {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.8) 100%);
+  color: hsl(var(--primary-foreground));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.thread-avatar-large {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.8) 100%);
+  color: hsl(var(--primary-foreground));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.thread-card-full-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  line-height: 1.4;
+}
+
+.thread-card-full-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+  margin-top: 0.25rem;
+}
+
+.thread-resolved-badge-full {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background-color: hsl(142 76% 36% / 0.15);
+  color: hsl(142 76% 36%);
+  flex-shrink: 0;
+}
+
+.thread-anchor-preview-full {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 0.875rem 1rem;
+  background-color: hsl(var(--muted) / 0.5);
+  border-radius: 0.5rem;
+  border-left: 3px solid hsl(var(--primary));
+  text-align: left;
+  width: 100%;
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background-color: hsl(var(--muted));
+  }
+}
+
+.thread-anchor-text-full {
+  flex: 1;
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+// ============================================================================
+// Thread View Full Page
+// ============================================================================
+
+.thread-view-full-container {
+  max-width: 48rem;
+  margin: 0 auto;
+}
+
+.thread-info-card {
+  padding: 1.5rem;
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  margin-bottom: 2rem;
+}
+
+.thread-anchor-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding: 1rem 1.25rem;
+  background-color: hsl(var(--muted) / 0.5);
+  border-radius: 0.5rem;
+  border: 1px solid hsl(var(--border));
+  text-align: left;
+  width: 100%;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background-color: hsl(var(--muted));
+    border-color: hsl(var(--primary) / 0.3);
+  }
+}
+
+.thread-replies-section {
+  margin-bottom: 2rem;
+}
+
+.thread-reply-full {
+  margin-bottom: 1rem;
+}
+
+.thread-reply-full-content {
+  padding: 1.25rem;
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  transition: border-color 0.15s ease;
+
+  &:hover {
+    border-color: hsl(var(--accent));
+  }
+}
+
+.thread-reply-nested {
+  border-left: 2px solid hsl(var(--border));
+  padding-left: 1rem;
+
+  .thread-reply-full-content {
+    background-color: hsl(var(--muted) / 0.3);
+  }
+}
+
+.thread-reply-full-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.thread-reply-full-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+
+  .thread-reply-full-content:hover & {
+    opacity: 1;
+  }
+}
+
+.thread-reply-full-body {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: hsl(var(--foreground));
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.thread-reply-input-full {
+  padding: 1.5rem;
+  background-color: hsl(var(--muted) / 0.3);
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  margin-top: 1.5rem;
+
+  @media (max-width: 640px) {
+    padding: 1rem;
+  }
+}
+
+.thread-resolved-banner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem;
+  background-color: hsl(142 76% 36% / 0.1);
+  border: 1px solid hsl(142 76% 36% / 0.2);
+  border-radius: 0.75rem;
+  margin-top: 2rem;
+}
+
+// ============================================================================
+// Old Sidebar Styles (kept for backwards compatibility with ThreadCard)
+// ============================================================================
+
+.threads-panel {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 320px;
+  background-color: hsl(var(--background));
+  border-left: 1px solid hsl(var(--border));
+  display: flex;
+  flex-direction: column;
+  z-index: 40;
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.1);
+}
+
+.threads-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid hsl(var(--border));
+  background-color: hsl(var(--muted) / 0.3);
+}
+
+.threads-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.threads-section {
+  margin-bottom: 1rem;
+}
+
+.threads-loading,
+.threads-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+}
+
+// ============================================================================
+// Thread Card Styles (Sidebar - kept for ThreadCard component)
+// ============================================================================
+
+.thread-card {
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background-color: hsl(var(--accent) / 0.5);
+    border-color: hsl(var(--accent));
+  }
+
+  &.is-resolved {
+    opacity: 0.7;
+
+    .thread-title {
+      text-decoration: line-through;
+      color: hsl(var(--muted-foreground));
+    }
+  }
+}
+
+.thread-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.thread-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.thread-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.thread-resolved-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  background-color: hsl(var(--success, 142 76% 36%) / 0.2);
+  color: hsl(var(--success, 142 76% 36%));
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.thread-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.thread-separator {
+  color: hsl(var(--border));
+}
+
+.thread-replies {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.thread-anchor-preview {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background-color: hsl(var(--muted) / 0.5);
+  border-radius: 0.375rem;
+  border-left: 2px solid hsl(var(--primary));
+
+  &:hover {
+    background-color: hsl(var(--muted));
+  }
+}
+
+.thread-anchor-text {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+// ============================================================================
+// Thread View Styles (Sidebar - kept for ThreadView component)
+// ============================================================================
+
+.thread-view-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.thread-view-header {
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.thread-view-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  margin-bottom: 0.5rem;
+}
+
+.thread-view-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.thread-replies-container {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 1rem;
+}
+
+.thread-no-replies {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+}
+
+.thread-reply-input-container {
+  padding-top: 1rem;
+  border-top: 1px solid hsl(var(--border));
+  margin-top: auto;
+}
+
+.thread-resolved-notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  margin-top: auto;
+  background-color: hsl(var(--success, 142 76% 36%) / 0.1);
+  color: hsl(var(--success, 142 76% 36%));
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+}
+
+// ============================================================================
+// Thread Reply Styles
+// ============================================================================
+
+.thread-reply {
+  margin-bottom: 0.75rem;
+}
+
+.thread-reply-content {
+  padding: 0.75rem;
+  background-color: hsl(var(--muted) / 0.3);
+  border-radius: 0.5rem;
+  border: 1px solid hsl(var(--border));
+
+  &.is-deleted {
+    opacity: 0.5;
+
+    .thread-reply-body {
+      font-style: italic;
+      color: hsl(var(--muted-foreground));
+    }
+  }
+}
+
+.thread-reply-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.thread-reply-author {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.thread-reply-avatar {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.625rem;
+  font-weight: 600;
+}
+
+.thread-reply-author-name {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+}
+
+.thread-reply-time {
+  font-size: 0.625rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.thread-reply-edited {
+  font-size: 0.625rem;
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+
+.thread-reply-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+
+  .thread-reply-content:hover & {
+    opacity: 1;
+  }
+}
+
+.thread-reply-action-btn {
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  color: hsl(var(--muted-foreground));
+  transition: all 0.15s ease;
+
+  &:hover {
+    background-color: hsl(var(--accent));
+    color: hsl(var(--foreground));
+  }
+}
+
+.thread-reply-body {
+  font-size: 0.875rem;
+  color: hsl(var(--foreground));
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.thread-reply-edit {
+  margin-top: 0.5rem;
+}
+
+.thread-reply-edit-input {
+  width: 100%;
+  padding: 0.5rem;
+  font-size: 0.875rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.375rem;
+  background-color: hsl(var(--background));
+  resize: none;
+
+  &:focus {
+    outline: none;
+    ring: 2px solid hsl(var(--primary));
+  }
+}
+
+.thread-reply-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.thread-reply-edit-cancel {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+
+  &:hover {
+    color: hsl(var(--foreground));
+  }
+}
+
+.thread-reply-edit-save {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-radius: 0.375rem;
+
+  &:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.thread-reply-inline-input {
+  margin-top: 0.5rem;
+  margin-left: 1rem;
+}
+
+.thread-reply-children {
+  margin-top: 0.5rem;
+}
+
+// ============================================================================
+// Thread Reply Input Styles
+// ============================================================================
+
+.thread-reply-input {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  background-color: hsl(var(--muted) / 0.3);
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+}
+
+.thread-reply-textarea {
+  flex: 1;
+  min-height: 2.25rem;
+  max-height: 8rem;
+  padding: 0.5rem;
+  font-size: 0.875rem;
+  background-color: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.375rem;
+  resize: none;
+
+  &:focus {
+    outline: none;
+    border-color: hsl(var(--primary));
+  }
+
+  &::placeholder {
+    color: hsl(var(--muted-foreground));
+  }
+}
+
+.thread-reply-input-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.thread-reply-cancel-btn {
+  padding: 0.5rem;
+  color: hsl(var(--muted-foreground));
+  border-radius: 0.375rem;
+
+  &:hover {
+    background-color: hsl(var(--accent));
+    color: hsl(var(--foreground));
+  }
+}
+
+.thread-reply-submit-btn {
+  padding: 0.5rem;
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-radius: 0.375rem;
+  transition: all 0.15s ease;
+
+  &:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+// ============================================================================
+// Thread Anchor Indicator (in document)
+// ============================================================================
+
+.thread-anchor {
+  background-color: hsl(var(--primary) / 0.15);
+  border-bottom: 2px dashed hsl(var(--primary));
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  position: relative;
+
+  &:hover {
+    background-color: hsl(var(--primary) / 0.25);
+  }
+}
+
+.thread-anchor-indicator {
+  position: absolute;
+  right: -1.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-radius: 9999px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+
+  .thread-anchor:hover & {
+    opacity: 1;
+  }
+}
+
+// Highlight animation for anchor navigation
+@keyframes anchorHighlight {
+  0% {
+    background-color: hsl(var(--primary) / 0.4);
+  }
+  100% {
+    background-color: hsl(var(--primary) / 0.15);
+  }
+}
+
+.thread-anchor-highlighted {
+  animation: anchorHighlight 2s ease-out;
+}
+
+// ============================================================================
+// Dark Mode Adjustments
+// ============================================================================
+
+.dark {
+  .threads-panel {
+    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.3);
+  }
+
+  .thread-card-full:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+
+  .thread-anchor {
+    background-color: hsl(var(--primary) / 0.2);
+
+    &:hover {
+      background-color: hsl(var(--primary) / 0.3);
+    }
+  }
+}
