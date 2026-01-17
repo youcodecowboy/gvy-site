@@ -21,6 +21,7 @@ import { Selection, Placeholder } from '@tiptap/extensions'
 import { CharacterCount } from '@tiptap/extension-character-count'
 import { Color, TextStyle } from '@tiptap/extension-text-style'
 import { UniqueID } from '@tiptap/extension-unique-id'
+import { TableOfContents, getHierarchicalIndexes } from '@tiptap/extension-table-of-contents'
 import { Emoji, gitHubEmojis } from '@tiptap/extension-emoji'
 import { Collaboration, isChangeOrigin } from '@tiptap/extension-collaboration'
 import { CollaborationCaret } from '@tiptap/extension-collaboration-caret'
@@ -84,6 +85,7 @@ import { NotionToolbarFloating } from '@/components/tiptap-templates/notion-like
 
 // --- Contexts ---
 import { UserProvider, useTiptapUser } from '@/contexts/user-context'
+import { useToc } from '@/components/tiptap-node/toc-node/context/toc-context'
 
 // --- Hooks ---
 import { useIsBreakpoint } from '@/hooks/use-is-breakpoint'
@@ -119,6 +121,9 @@ interface TipTapEditorProps {
   docTitle: string
   content: any
   onSavingChange?: (isSaving: boolean) => void
+  scrollToPosition?: { from: number; to: number }
+  aiToken?: string | null
+  collabToken?: string | null
 }
 
 interface CollaboratorInfo {
@@ -269,14 +274,15 @@ function CollaboratorsDisplay({ collaborators }: { collaborators: CollaboratorIn
 }
 
 // Inner editor component with collaboration
-function TipTapEditorInner({ 
+function TipTapEditorInner({
   docId,
   docTitle,
   content: initialContent,
   onSavingChange,
+  scrollToPosition,
   aiToken,
   collabToken,
-}: TipTapEditorProps & { 
+}: TipTapEditorProps & {
   aiToken: string | null
   collabToken: string | null
 }) {
@@ -286,6 +292,7 @@ function TipTapEditorInner({
   const createMentions = useMutation(api.mentions.createMentions)
   const createComment = useMutation(api.comments.createComment)
   const isMobile = useIsBreakpoint()
+  const { setTocContent } = useToc()
   const toolbarRef = useRef<HTMLDivElement>(null)
   const { user } = useTiptapUser()
   const [collaborators, setCollaborators] = useState<CollaboratorInfo[]>([])
@@ -569,6 +576,12 @@ function TipTapEditorInner({
         ],
         filterTransaction: (transaction) => !isChangeOrigin(transaction),
       }),
+      TableOfContents.configure({
+        getIndex: getHierarchicalIndexes,
+        onUpdate(content) {
+          setTocContent(content)
+        },
+      }),
       ImageUploadNode.configure({
         accept: 'image/*',
         maxSize: MAX_FILE_SIZE,
@@ -693,13 +706,47 @@ function TipTapEditorInner({
   useEffect(() => {
     if (isSynced && isCloudEmpty && editor && initialContent) {
       console.log('Initializing editor with Convex content after empty cloud sync')
-      // Small delay to ensure editor is fully ready
-      setTimeout(() => {
+      // Use requestAnimationFrame for optimal timing instead of setTimeout
+      requestAnimationFrame(() => {
         editor.commands.setContent(initialContent)
         setIsCloudEmpty(false) // Only do this once
-      }, 100)
+      })
     }
   }, [isSynced, isCloudEmpty, editor, initialContent])
+
+  // Scroll to position when navigating from a flag link
+  const hasScrolledToFlagRef = useRef(false)
+  useEffect(() => {
+    if (scrollToPosition && editor && !hasScrolledToFlagRef.current) {
+      // Wait for editor to be ready
+      const timeout = setTimeout(() => {
+        try {
+          const { from, to } = scrollToPosition
+          const docSize = editor.state.doc.content.size
+
+          // Validate position is within document bounds
+          if (from >= 0 && to <= docSize && from < to) {
+            // Set selection to highlight the flagged text
+            editor.chain().focus().setTextSelection({ from, to }).run()
+
+            // Scroll the selection into view
+            const coords = editor.view.coordsAtPos(from)
+            if (coords) {
+              window.scrollTo({
+                top: coords.top - 200, // Offset from top for better visibility
+                behavior: 'smooth',
+              })
+            }
+            hasScrolledToFlagRef.current = true
+          }
+        } catch (error) {
+          console.error('Failed to scroll to flag position:', error)
+        }
+      }, 500) // Wait for editor to be fully initialized
+
+      return () => clearTimeout(timeout)
+    }
+  }, [scrollToPosition, editor])
 
   // All hooks must be before any early returns
   const handleAddComment = useCallback(async () => {
@@ -789,7 +836,7 @@ function TipTapEditorInner({
             <EmojiDropdownMenu />
             <MentionDropdownMenu />
             <SlashDropdownMenu />
-            <NotionToolbarFloating />
+            <NotionToolbarFloating docId={docId} />
           </EditorContent>
 
           {/* Table UI */}
@@ -921,19 +968,35 @@ function TipTapEditorInner({
 
 // Main component that fetches tokens and wraps with providers
 export function TipTapEditor(props: TipTapEditorProps) {
-  const [aiToken, setAiToken] = useState<string | null>(null)
-  const [collabToken, setCollabToken] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [aiToken, setAiToken] = useState<string | null>(props.aiToken ?? null)
+  const [collabToken, setCollabToken] = useState<string | null>(props.collabToken ?? null)
+  const [isLoading, setIsLoading] = useState(props.aiToken === undefined || props.collabToken === undefined)
 
+  // Update tokens when props change
   useEffect(() => {
+    if (props.aiToken !== undefined) {
+      setAiToken(props.aiToken)
+    }
+    if (props.collabToken !== undefined) {
+      setCollabToken(props.collabToken)
+    }
+  }, [props.aiToken, props.collabToken])
+
+  // Only fetch tokens if not provided via props
+  useEffect(() => {
+    if (props.aiToken !== undefined && props.collabToken !== undefined) {
+      setIsLoading(false)
+      return
+    }
+
     const loadTokens = async () => {
       try {
         const [ai, collab] = await Promise.all([
           fetchAiToken(),
           fetchCollabToken(),
         ])
-        setAiToken(ai)
-        setCollabToken(collab)
+        if (props.aiToken === undefined) setAiToken(ai)
+        if (props.collabToken === undefined) setCollabToken(collab)
       } catch (error) {
         console.error('Failed to fetch tokens:', error)
       } finally {
@@ -941,7 +1004,7 @@ export function TipTapEditor(props: TipTapEditorProps) {
       }
     }
     loadTokens()
-  }, [])
+  }, [props.aiToken, props.collabToken])
 
   if (isLoading) {
     return (
@@ -957,11 +1020,12 @@ export function TipTapEditor(props: TipTapEditorProps) {
 
   return (
     <UserProvider>
-      <TipTapEditorInner 
+      <TipTapEditorInner
         docId={props.docId}
         docTitle={props.docTitle}
         content={props.content}
         onSavingChange={props.onSavingChange}
+        scrollToPosition={props.scrollToPosition}
         aiToken={aiToken}
         collabToken={collabToken}
       />

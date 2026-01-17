@@ -62,6 +62,8 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_owner_parent", ["ownerId", "parentId"])
     .index("by_org_parent", ["orgId", "parentId"])
+    .index("by_owner_parent_order", ["ownerId", "parentId", "order"])
+    .index("by_org_parent_order", ["orgId", "parentId", "order"])
     .index("by_updated", ["updatedAt"]),
 
   // Mentions tracking for notifications
@@ -132,20 +134,80 @@ export default defineSchema({
   tags: defineTable({
     // Tag name (normalized to lowercase, unique)
     name: v.string(),
-    
+
     // Display name (preserves original casing)
     displayName: v.string(),
-    
+
     // When tag was created
     createdAt: v.number(),
-    
+
     // Who created the tag
     createdBy: v.string(),
     createdByName: v.string(),
-    
+
     // Usage count (for sorting/popularity)
     usageCount: v.number(),
   })
     .index("by_name", ["name"])
     .index("by_usage", ["usageCount"]),
+
+  // Document view tracking
+  views: defineTable({
+    // Document that was viewed
+    docId: v.id("nodes"),
+
+    // Clerk user ID who viewed
+    viewedByUserId: v.string(),
+
+    // Name of user who viewed (for display without Clerk lookup)
+    viewedByUserName: v.string(),
+
+    // When the view occurred
+    viewedAt: v.number(),
+  })
+    .index("by_doc", ["docId"])
+    .index("by_doc_user", ["docId", "viewedByUserId"]),
+
+  // Private flags for documents
+  flags: defineTable({
+    // Document that was flagged
+    docId: v.id("nodes"),
+
+    // Document title (for display in notifications)
+    docTitle: v.string(),
+
+    // Type: inline (text selection) or document (entire doc)
+    type: v.union(v.literal("inline"), v.literal("document")),
+
+    // For inline flags: selected text info
+    selectionData: v.optional(
+      v.object({
+        from: v.number(),
+        to: v.number(),
+        selectedText: v.string(),
+      })
+    ),
+
+    // Sender info
+    senderId: v.string(),
+    senderName: v.string(),
+
+    // Recipient info (single recipient - flags are private)
+    recipientId: v.string(),
+    recipientName: v.string(),
+
+    // Flag message content
+    message: v.string(),
+
+    // Timestamps
+    createdAt: v.number(),
+
+    // Read status
+    isRead: v.optional(v.boolean()),
+    readAt: v.optional(v.number()),
+  })
+    .index("by_recipient", ["recipientId"])
+    .index("by_recipient_unread", ["recipientId", "isRead"])
+    .index("by_sender", ["senderId"])
+    .index("by_doc", ["docId"]),
 });

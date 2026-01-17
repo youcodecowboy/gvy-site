@@ -22,6 +22,7 @@ import { useNavigation } from '@/components/app-shell'
 import { useToast } from '@/components/ui'
 import { TagsInput } from '@/components/editor'
 import { IconPicker } from '@/components/editor'
+import { usePrefetch } from '@/hooks/usePrefetch'
 
 // Simple description editor (plain textarea for now, can be upgraded to TipTap later)
 function DescriptionEditor({ 
@@ -190,6 +191,7 @@ export default function FolderPage() {
   
   const { setCurrentFolderId, setCurrentSection } = useNavigation()
   const { toast } = useToast()
+  const { prefetchDocs } = usePrefetch()
 
   // Update title state when folder loads
   useEffect(() => {
@@ -209,6 +211,20 @@ export default function FolderPage() {
       }
     }
   }, [id, folder, setCurrentFolderId, setCurrentSection])
+
+  // Prefetch first 5 document children for faster navigation
+  useEffect(() => {
+    if (children && children.length > 0) {
+      const docChildren = children
+        .filter((child: any) => child.type === 'doc' && !child.isDeleted)
+        .slice(0, 5)
+        .map((child: any) => child._id)
+
+      if (docChildren.length > 0) {
+        prefetchDocs(docChildren)
+      }
+    }
+  }, [children, prefetchDocs])
 
   const handleTitleBlur = async () => {
     setIsTitleFocused(false)

@@ -11,9 +11,11 @@
 import type * as comments from "../comments.js";
 import type * as dashboard from "../dashboard.js";
 import type * as files from "../files.js";
+import type * as flags from "../flags.js";
 import type * as mentions from "../mentions.js";
 import type * as nodes from "../nodes.js";
 import type * as tags from "../tags.js";
+import type * as views from "../views.js";
 
 import type {
   ApiFromModules,
@@ -25,9 +27,11 @@ declare const fullApi: ApiFromModules<{
   comments: typeof comments;
   dashboard: typeof dashboard;
   files: typeof files;
+  flags: typeof flags;
   mentions: typeof mentions;
   nodes: typeof nodes;
   tags: typeof tags;
+  views: typeof views;
 }>;
 
 /**

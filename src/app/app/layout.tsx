@@ -4,6 +4,7 @@ import { Sidebar, Header, SidebarProvider, NavigationProvider } from '@/componen
 import { ToastProvider } from '@/components/ui'
 import { CommandPaletteProvider } from '@/components/CommandPalette'
 import { DocCacheProvider } from '@/contexts/doc-cache-context'
+import { TokenCacheProvider } from '@/contexts/token-cache-context'
 
 function AppContent({ children }: { children: React.ReactNode }) {
   return (
@@ -31,15 +32,17 @@ export default function AppLayout({
 }) {
   return (
     <ToastProvider>
-      <DocCacheProvider>
-        <CommandPaletteProvider>
-          <SidebarProvider>
-            <NavigationProvider>
-              <AppContent>{children}</AppContent>
-            </NavigationProvider>
-          </SidebarProvider>
-        </CommandPaletteProvider>
-      </DocCacheProvider>
+      <TokenCacheProvider>
+        <DocCacheProvider>
+          <CommandPaletteProvider>
+            <SidebarProvider>
+              <NavigationProvider>
+                <AppContent>{children}</AppContent>
+              </NavigationProvider>
+            </SidebarProvider>
+          </CommandPaletteProvider>
+        </DocCacheProvider>
+      </TokenCacheProvider>
     </ToastProvider>
   )
 }

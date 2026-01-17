@@ -29,6 +29,7 @@ import { useOrganization, useUser, OrganizationSwitcher } from '@clerk/nextjs'
 import { OrganizationSettingsModal } from '@/components/organization'
 import { useTheme } from 'next-themes'
 import type { Id } from '../../../convex/_generated/dataModel'
+import { useDocCache } from '@/contexts/doc-cache-context'
 
 export function Sidebar() {
   const router = useRouter()
@@ -55,6 +56,7 @@ export function Sidebar() {
   const removeNode = useRemoveNode()
   const moveNode = useMoveNode()
   const reorderNode = useReorderNode()
+  const { setDoc } = useDocCache()
 
   // Track current path for folder context
   const pathname = usePathname()
@@ -93,20 +95,49 @@ export function Sidebar() {
   }, [updateTitle, toast])
 
   const handleNewDoc = useCallback(async () => {
+    const isOrg = currentSection === 'organization' && organization?.id
+
+    // Generate temporary ID for optimistic update
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+    // Optimistically add document to cache
+    setDoc({
+      _id: tempId,
+      title: 'Untitled',
+      content: '',
+      icon: null,
+      parentId: currentFolderId || null,
+      tagIds: [],
+      status: null,
+      ownerId: user?.id || '',
+      orgId: isOrg ? organization.id : null,
+      type: 'doc',
+      cachedAt: Date.now(),
+      isOptimistic: true, // Flag for special handling
+    })
+
+    // Navigate immediately for instant perceived performance
+    router.push(`/app/doc/${tempId}`)
+    toast({ title: 'Creating document...', variant: 'default', duration: 1500 })
+
     try {
-      const isOrg = currentSection === 'organization' && organization?.id
-      const newId = await createNode({
+      // Create document in background
+      const realId = await createNode({
         type: 'doc',
         parentId: currentFolderId ? (currentFolderId as Id<'nodes'>) : null,
         title: 'Untitled',
         orgId: isOrg ? organization.id : undefined,
       })
-      toast({ title: 'Document created', variant: 'success' })
-      router.push(`/app/doc/${newId}`)
+
+      // Replace temp ID with real ID in URL
+      router.replace(`/app/doc/${realId}`)
+      toast({ title: 'Document created', variant: 'success', duration: 1500 })
     } catch (error) {
+      // Rollback: navigate back on error
+      router.back()
       toast({ title: 'Failed to create document', variant: 'error' })
     }
-  }, [createNode, toast, currentSection, currentFolderId, organization?.id, router])
+  }, [createNode, toast, currentSection, currentFolderId, organization?.id, user?.id, router, setDoc])
 
   const handleNewFolder = useCallback(async () => {
     try {

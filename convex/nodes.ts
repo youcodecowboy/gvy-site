@@ -134,25 +134,27 @@ export const create = mutation({
       throw new Error("Not authenticated");
     }
 
-    // Get the max order for siblings
-    let siblings;
+    // Get the max order for siblings - optimized to query only the last sibling
+    let lastSibling;
     if (args.orgId) {
-      siblings = await ctx.db
+      lastSibling = await ctx.db
         .query("nodes")
-        .withIndex("by_org_parent", (q) =>
+        .withIndex("by_org_parent_order", (q) =>
           q.eq("orgId", args.orgId).eq("parentId", args.parentId)
         )
-        .collect();
+        .order("desc")
+        .first();
     } else {
-      siblings = await ctx.db
+      lastSibling = await ctx.db
         .query("nodes")
-        .withIndex("by_owner_parent", (q) =>
+        .withIndex("by_owner_parent_order", (q) =>
           q.eq("ownerId", identity.subject).eq("parentId", args.parentId)
         )
-        .collect();
+        .order("desc")
+        .first();
     }
 
-    const maxOrder = siblings.reduce((max, node) => Math.max(max, node.order), -1);
+    const maxOrder = lastSibling?.order ?? -1;
 
     const nodeId = await ctx.db.insert("nodes", {
       type: args.type,

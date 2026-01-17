@@ -114,7 +114,7 @@ export const getHomePageData = query({
       .query("comments")
       .order("desc")
       .take(50);
-    
+
     const recentComments = allComments
       .filter(comment => accessibleDocIds.has(comment.docId))
       .slice(0, 6)
@@ -127,6 +127,21 @@ export const getHomePageData = query({
         createdAt: comment.createdAt,
         isResolved: comment.isResolved,
       }));
+
+    // Get unread flags for current user
+    const unreadFlags = await ctx.db
+      .query("flags")
+      .withIndex("by_recipient_unread", (q) =>
+        q.eq("recipientId", userId).eq("isRead", false)
+      )
+      .collect();
+
+    // Sort by most recent and take first 5
+    const recentUnreadFlags = unreadFlags
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 5);
+
+    const unreadFlagCount = unreadFlags.length;
 
     return {
       userName,
@@ -149,6 +164,8 @@ export const getHomePageData = query({
       unreadMentions,
       unreadMentionCount,
       recentComments,
+      unreadFlags: recentUnreadFlags,
+      unreadFlagCount,
       hasOrgAccess: !!args.orgId,
     };
   },

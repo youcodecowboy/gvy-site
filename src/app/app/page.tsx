@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { FileText, FolderOpen, Plus, Clock, Users, Bell, MessageSquare } from 'lucide-react'
+import { FileText, FolderOpen, Plus, Clock, Users, Bell, MessageSquare, Flag } from 'lucide-react'
 import { useQuery } from 'convex/react'
 import { useOrganization } from '@clerk/nextjs'
 import { api } from '../../../convex/_generated/api'
@@ -15,11 +15,14 @@ import {
   RecentActivity,
   MentionsPreview,
   CommentsPreview,
+  FlagsPreview,
 } from '@/components/dashboard'
+import { usePrefetch } from '@/hooks/usePrefetch'
 
 export default function AppPage() {
   const { organization } = useOrganization()
   const { setCurrentFolderId } = useNavigation()
+  const { prefetchDoc, prefetchDocs } = usePrefetch()
 
   // Get dashboard data
   const dashboardData = useQuery(api.dashboard.getHomePageData, {
@@ -30,6 +33,30 @@ export default function AppPage() {
   useEffect(() => {
     setCurrentFolderId(null)
   }, [setCurrentFolderId])
+
+  // Prefetch recent documents for faster navigation
+  useEffect(() => {
+    if (dashboardData) {
+      const docsToPrefetch: string[] = []
+
+      // Prefetch most recent document (it's always a doc from dashboard)
+      if (dashboardData.mostRecentDocument) {
+        docsToPrefetch.push(dashboardData.mostRecentDocument._id)
+      }
+
+      // Prefetch first 5 documents from recent updates
+      const recentDocs = dashboardData.recentUpdates
+        .filter((update: any) => !update.isDeleted)
+        .slice(0, 5)
+        .map((update: any) => update._id)
+
+      docsToPrefetch.push(...recentDocs)
+
+      if (docsToPrefetch.length > 0) {
+        prefetchDocs(docsToPrefetch)
+      }
+    }
+  }, [dashboardData, prefetchDocs])
 
   // Loading state
   if (dashboardData === undefined) {
@@ -90,6 +117,8 @@ export default function AppPage() {
     unreadMentions,
     unreadMentionCount,
     recentComments,
+    unreadFlags,
+    unreadFlagCount,
     hasOrgAccess,
   } = dashboardData
 
@@ -163,9 +192,10 @@ export default function AppPage() {
         </section>
       )}
 
-      {/* Mentions & Comments Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+      {/* Mentions, Flags & Comments Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         <MentionsPreview mentions={unreadMentions} title="Recent Mentions" />
+        <FlagsPreview flags={unreadFlags || []} unreadCount={unreadFlagCount || 0} />
         <CommentsPreview comments={recentComments} title="Recent Comments" />
       </div>
 

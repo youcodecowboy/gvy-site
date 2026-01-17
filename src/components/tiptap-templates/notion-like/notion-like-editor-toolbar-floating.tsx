@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react"
 import { type Editor } from "@tiptap/react"
 import { MessageSquare } from "lucide-react"
 import { NewThreadPopover } from "@/components/tiptap-ui/thread-popover/thread-popover"
+import { FlagButton } from "@/components/tiptap-ui/flag-button"
 
 // --- Hooks ---
 import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
@@ -49,7 +50,11 @@ import {
 // --- UI Utils ---
 import { FloatingElement } from "@/components/tiptap-ui-utils/floating-element"
 
-export function NotionToolbarFloating() {
+interface NotionToolbarFloatingProps {
+  docId?: string
+}
+
+export function NotionToolbarFloating({ docId }: NotionToolbarFloatingProps) {
   const { editor } = useTiptapEditor()
   const isMobile = useIsBreakpoint("max", 480)
   const { lockDragHandle, aiGenerationActive, commentInputVisible } =
@@ -103,6 +108,7 @@ export function NotionToolbarFloating() {
           />
           <ColorTextPopover hideWhenUnavailable={true} />
           <CommentButton editor={editor} />
+          <FlagButton editor={editor} docId={docId} />
         </ToolbarGroup>
 
         <MoreOptions hideWhenUnavailable={true} />

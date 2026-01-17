@@ -9,6 +9,7 @@ import { useTree } from './TreeContext'
 import { TreeContextMenu } from './TreeContextMenu'
 import type { Node } from '@/lib/mockTree'
 import { hasChildren as checkHasChildren, getChildren } from '@/lib/mockTree'
+import { usePrefetch } from '@/hooks/usePrefetch'
 
 interface TreeItemProps {
   node: Node
@@ -46,6 +47,10 @@ export function TreeItem({ node, nodes, depth, activeId, overId, dropPosition }:
   const [isHovered, setIsHovered] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const moreButtonRef = useRef<HTMLButtonElement>(null)
+  const prefetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Prefetch hook for hover prefetching
+  const { prefetchDoc } = usePrefetch()
 
   const isFolder = node.type === 'folder'
   const expanded = isExpanded(node.id)
@@ -227,6 +232,37 @@ export function TreeItem({ node, nodes, depth, activeId, overId, dropPosition }:
     }
   }, [escPressed, localTitle, node.id, node.title, commitRename, cancelRename])
 
+  // Prefetch document on hover with 200ms debounce
+  const handleMouseEnter = useCallback(() => {
+    setIsHovered(true)
+
+    // Only prefetch documents, not folders
+    if (!isFolder) {
+      prefetchTimeoutRef.current = setTimeout(() => {
+        prefetchDoc(node.id)
+      }, 200)
+    }
+  }, [isFolder, node.id, prefetchDoc])
+
+  const handleMouseLeave = useCallback(() => {
+    setIsHovered(false)
+
+    // Clear prefetch timeout if mouse leaves before delay
+    if (prefetchTimeoutRef.current) {
+      clearTimeout(prefetchTimeoutRef.current)
+      prefetchTimeoutRef.current = null
+    }
+  }, [])
+
+  // Cleanup prefetch timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (prefetchTimeoutRef.current) {
+        clearTimeout(prefetchTimeoutRef.current)
+      }
+    }
+  }, [])
+
   const children = isFolder && expanded ? getChildren(nodes, node.id) : []
   
   // Combine refs for folder (draggable + droppable inside)
@@ -252,8 +288,8 @@ export function TreeItem({ node, nodes, depth, activeId, overId, dropPosition }:
         <Link
           href={href}
           onClick={handleClick}
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
           className={`
             group flex items-center gap-1 pr-2 py-1.5 text-sm rounded-md
             transition-colors relative select-none

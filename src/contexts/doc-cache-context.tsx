@@ -20,6 +20,7 @@ interface CachedDoc {
   orgId?: string | null
   type: 'doc'
   cachedAt: number
+  isOptimistic?: boolean // Flag for optimistically created documents
 }
 
 interface DocCacheContextValue {
@@ -31,8 +32,10 @@ interface DocCacheContextValue {
 
 const DocCacheContext = createContext<DocCacheContextValue | null>(null)
 
-// Cache docs for 5 minutes
-const CACHE_TTL = 5 * 60 * 1000
+// Cache docs for 10 minutes (extended for prefetched docs)
+const CACHE_TTL = 10 * 60 * 1000
+// Max cache size increased from 20 to 30 for better prefetch performance
+const MAX_CACHE_SIZE = 30
 
 export function DocCacheProvider({ children }: { children: ReactNode }) {
   const [cache, setCache] = useState<Map<string, CachedDoc>>(new Map())
@@ -60,9 +63,9 @@ export function DocCacheProvider({ children }: { children: ReactNode }) {
       const next = new Map(prev)
       next.set(doc._id, { ...doc, cachedAt: Date.now() })
       
-      // Keep cache size reasonable (max 20 docs)
-      if (next.size > 20) {
-        // Remove oldest entry
+      // Keep cache size reasonable (max 30 docs)
+      if (next.size > MAX_CACHE_SIZE) {
+        // Remove oldest entry (LRU eviction)
         const entries = Array.from(next.entries())
         entries.sort((a, b) => a[1].cachedAt - b[1].cachedAt)
         next.delete(entries[0][0])

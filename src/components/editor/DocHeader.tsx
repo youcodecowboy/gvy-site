@@ -10,6 +10,9 @@ import { DocBreadcrumbs } from './DocBreadcrumbs'
 import { TagsInput } from './TagsInput'
 import { StatusDropdown } from './StatusDropdown'
 import { IconPicker } from './IconPicker'
+import { ViewStats } from './ViewStats'
+import { TableOfContentsBar } from './TableOfContentsBar'
+import { DocFlagButton } from './DocFlagButton'
 
 interface DocHeaderProps {
   doc: {
@@ -221,11 +224,15 @@ export function DocHeader({ doc, isSaving }: DocHeaderProps) {
 
       {/* Properties row */}
       <div className="flex items-center gap-4 flex-wrap text-sm">
+        <TableOfContentsBar />
+
         <TagsInput
           tagIds={(doc.tagIds || []) as Id<'tags'>[]}
           onChange={handleTagsChange}
         />
-        
+
+        <ViewStats docId={doc._id} />
+
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-muted-foreground">Status:</span>
           <StatusDropdown
@@ -240,6 +247,8 @@ export function DocHeader({ doc, isSaving }: DocHeaderProps) {
             <span className="text-xs">@{user.username || user.firstName || 'you'}</span>
           </div>
         )}
+
+        <DocFlagButton docId={doc._id} docTitle={doc.title} />
       </div>
     </div>
   )
