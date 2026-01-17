@@ -61,7 +61,7 @@ import { TableExtendRowColumnButtons } from '@/components/tiptap-node/table-node
 // --- Tiptap UI Components ---
 import { HeadingDropdownMenu } from '@/components/tiptap-ui/heading-dropdown-menu'
 import { ImageUploadButton } from '@/components/tiptap-ui/image-upload-button'
-import { ExportButton } from '@/components/tiptap-ui/export-button'
+import { ExportDropdown } from '@/components/tiptap-ui/export-dropdown'
 import { ListDropdownMenu } from '@/components/tiptap-ui/list-dropdown-menu'
 import { BlockquoteButton } from '@/components/tiptap-ui/blockquote-button'
 import { CodeBlockButton } from '@/components/tiptap-ui/code-block-button'
@@ -122,6 +122,7 @@ interface TipTapEditorProps {
   docId: string
   docTitle: string
   content: any
+  versionString?: string
   onSavingChange?: (isSaving: boolean) => void
   scrollToPosition?: { from: number; to: number }
   aiToken?: string | null
@@ -148,14 +149,18 @@ function MainToolbarContent({
   onToggleComments,
   commentCount = 0,
   hasProvider = false,
+  docId,
   docTitle,
+  versionString,
 }: {
   isMobile: boolean
   showComments?: boolean
   onToggleComments?: () => void
   commentCount?: number
   hasProvider?: boolean
+  docId: string
   docTitle?: string
+  versionString?: string
 }) {
   return (
     <>
@@ -213,7 +218,11 @@ function MainToolbarContent({
       <ToolbarSeparator />
 
       <ToolbarGroup>
-        <ExportButton docTitle={docTitle} />
+        <ExportDropdown
+          docId={docId}
+          docTitle={docTitle || 'Untitled'}
+          versionString={versionString}
+        />
       </ToolbarGroup>
 
       {hasProvider && onToggleComments && (
@@ -283,6 +292,7 @@ function TipTapEditorInner({
   docId,
   docTitle,
   content: initialContent,
+  versionString,
   onSavingChange,
   scrollToPosition,
   aiToken,
@@ -895,7 +905,9 @@ function TipTapEditorInner({
               onToggleComments={handleToggleComments}
               commentCount={unresolvedThreads.length}
               hasProvider={!!provider}
+              docId={docId}
               docTitle={docTitle}
+              versionString={versionString}
             />
             
             {/* Collaborators */}
@@ -1122,6 +1134,7 @@ export function TipTapEditor(props: TipTapEditorProps) {
         docId={props.docId}
         docTitle={props.docTitle}
         content={props.content}
+        versionString={props.versionString}
         onSavingChange={props.onSavingChange}
         scrollToPosition={props.scrollToPosition}
         aiToken={aiToken}

@@ -13,6 +13,7 @@ import { IconPicker } from './IconPicker'
 import { ViewStats } from './ViewStats'
 import { TableOfContentsBar } from './TableOfContentsBar'
 import { DocFlagButton } from './DocFlagButton'
+import { VersionBadge } from './VersionBadge'
 
 interface DocHeaderProps {
   doc: {
@@ -24,6 +25,7 @@ interface DocHeaderProps {
     status?: 'draft' | 'in_review' | 'final'
     ownerId?: string
     orgId?: string
+    currentVersionString?: string
   }
   isSaving: boolean
   showThreads?: boolean
@@ -175,8 +177,14 @@ export function DocHeader({ doc, isSaving, showThreads, onToggleThreads, threadC
           className="flex-1 text-3xl font-bold bg-transparent border-0 p-0 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-0"
         />
 
-        {/* Right side: save indicator + privacy */}
+        {/* Right side: version + save indicator + privacy */}
         <div className="flex items-center gap-2 mt-2">
+          {/* Version Badge */}
+          <VersionBadge
+            docId={doc._id}
+            versionString={doc.currentVersionString || 'v1.0'}
+          />
+
           {/* Save indicator */}
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             {isSaving ? (

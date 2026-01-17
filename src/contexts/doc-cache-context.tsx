@@ -18,6 +18,7 @@ interface CachedDoc {
   status?: string | null
   ownerId?: string
   orgId?: string | null
+  currentVersionString?: string
   type: 'doc'
   cachedAt: number
   isOptimistic?: boolean // Flag for optimistically created documents

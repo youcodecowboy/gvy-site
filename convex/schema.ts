@@ -56,6 +56,12 @@ export default defineSchema({
     // Soft delete
     isDeleted: v.optional(v.boolean()),
     deletedAt: v.optional(v.number()),
+
+    // Document versioning
+    currentMajorVersion: v.optional(v.number()),   // Default: 1
+    currentMinorVersion: v.optional(v.number()),   // Default: 0
+    currentVersionString: v.optional(v.string()),  // e.g., "v1.0"
+    lastVersionSnapshotAt: v.optional(v.number()), // For batching saves into versions
   })
     .index("by_parent", ["parentId"])
     .index("by_owner", ["ownerId"])
@@ -319,4 +325,68 @@ export default defineSchema({
     .index("by_recipient", ["recipientId"])
     .index("by_recipient_unread", ["recipientId", "isRead"])
     .index("by_thread", ["threadId"]),
+
+  // Document versions - stores content snapshots for version history
+  documentVersions: defineTable({
+    // Document this version belongs to
+    docId: v.id("nodes"),
+
+    // Version numbers (semantic versioning for docs)
+    majorVersion: v.number(),
+    minorVersion: v.number(),
+
+    // Full version string for display (e.g., "v1.2")
+    versionString: v.string(),
+
+    // Content snapshot (TipTap JSON at this version)
+    content: v.any(),
+
+    // Document title at time of version creation
+    title: v.string(),
+
+    // Metadata
+    createdAt: v.number(),
+    createdBy: v.string(),
+    createdByName: v.string(),
+
+    // Change summary (optional, typically for major versions)
+    changeSummary: v.optional(v.string()),
+
+    // Flag to indicate if this is a major version (user-created milestone)
+    isMajorVersion: v.boolean(),
+  })
+    .index("by_doc", ["docId"])
+    .index("by_doc_version", ["docId", "majorVersion", "minorVersion"])
+    .index("by_created", ["createdAt"]),
+
+  // Export history - tracks all document exports (PDF, DOCX)
+  exportHistory: defineTable({
+    // Document that was exported
+    docId: v.id("nodes"),
+
+    // Version that was exported (optional - links to specific version)
+    versionId: v.optional(v.id("documentVersions")),
+
+    // Version string at time of export (e.g., "v1.2")
+    versionString: v.string(),
+
+    // Export format
+    format: v.union(v.literal("pdf"), v.literal("docx")),
+
+    // Document title at time of export
+    docTitle: v.string(),
+
+    // Who exported
+    exportedBy: v.string(),
+    exportedByName: v.string(),
+
+    // When exported
+    exportedAt: v.number(),
+
+    // File size in bytes (optional, for analytics)
+    fileSize: v.optional(v.number()),
+  })
+    .index("by_doc", ["docId"])
+    .index("by_user", ["exportedBy"])
+    .index("by_exported", ["exportedAt"]),
 });

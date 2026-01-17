@@ -78,6 +78,7 @@ export default function DocPage() {
         status: doc.status ?? null,
         ownerId: doc.ownerId ?? '',
         orgId: doc.orgId ?? null,
+        currentVersionString: doc.currentVersionString ?? 'v1.0',
         type: 'doc',
         cachedAt: Date.now(),
       })
@@ -197,6 +198,7 @@ export default function DocPage() {
               status: displayDoc.status as 'draft' | 'in_review' | 'final' | undefined,
               ownerId: displayDoc.ownerId ?? '',
               orgId: displayDoc.orgId ?? undefined,
+              currentVersionString: displayDoc.currentVersionString ?? 'v1.0',
             }}
             isSaving={isSaving}
             showThreads={showThreads}
@@ -207,6 +209,7 @@ export default function DocPage() {
             docId={displayDoc._id as string}
             docTitle={displayDoc.title}
             content={displayDoc.content ?? ''}
+            versionString={displayDoc.currentVersionString ?? 'v1.0'}
             onSavingChange={setIsSaving}
             scrollToPosition={flagFrom && flagTo ? { from: parseInt(flagFrom), to: parseInt(flagTo) } : undefined}
             aiToken={aiToken}

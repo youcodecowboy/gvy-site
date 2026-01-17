@@ -203,7 +203,11 @@ export const updateTitle = mutation({
   },
 });
 
-// Update a doc's content (TipTap JSON)
+// Version batch window in milliseconds (30 seconds)
+// Multiple saves within this window are batched into a single version
+const VERSION_BATCH_WINDOW = 30 * 1000;
+
+// Update a doc's content (TipTap JSON) with automatic versioning
 export const updateContent = mutation({
   args: {
     id: v.id("nodes"),
@@ -226,12 +230,63 @@ export const updateContent = mutation({
     }
 
     const userName = identity.name || identity.nickname || "Unknown";
-    await ctx.db.patch(args.id, { 
+    const now = Date.now();
+
+    // Initialize versioning if not present
+    let majorVersion = node.currentMajorVersion ?? 1;
+    let minorVersion = node.currentMinorVersion ?? 0;
+    const lastSnapshot = node.lastVersionSnapshotAt ?? 0;
+
+    // Check if we should create a new version snapshot
+    // Only create snapshot if:
+    // 1. There's existing content to snapshot
+    // 2. Enough time has passed since last snapshot (batch window)
+    const shouldCreateSnapshot = node.content && (now - lastSnapshot) > VERSION_BATCH_WINDOW;
+
+    if (shouldCreateSnapshot) {
+      // Increment minor version for this batch of changes
+      minorVersion += 1;
+      const versionString = `v${majorVersion}.${minorVersion}`;
+
+      // Create version snapshot of the PREVIOUS content (before this save)
+      await ctx.db.insert("documentVersions", {
+        docId: args.id,
+        majorVersion,
+        minorVersion,
+        versionString,
+        content: node.content, // Previous content
+        title: node.title,
+        createdAt: now,
+        createdBy: identity.subject,
+        createdByName: userName,
+        isMajorVersion: false,
+      });
+    }
+
+    // Build update payload
+    const updatePayload: any = {
       content: args.content,
-      updatedAt: Date.now(),
+      updatedAt: now,
       updatedBy: identity.subject,
       updatedByName: userName,
-    });
+    };
+
+    // Add versioning fields
+    if (shouldCreateSnapshot) {
+      // Update version info after creating snapshot
+      updatePayload.currentMajorVersion = majorVersion;
+      updatePayload.currentMinorVersion = minorVersion;
+      updatePayload.currentVersionString = `v${majorVersion}.${minorVersion}`;
+      updatePayload.lastVersionSnapshotAt = now;
+    } else if (!node.currentVersionString) {
+      // Initialize versioning for new docs (first save)
+      updatePayload.currentMajorVersion = 1;
+      updatePayload.currentMinorVersion = 0;
+      updatePayload.currentVersionString = "v1.0";
+      updatePayload.lastVersionSnapshotAt = now;
+    }
+
+    await ctx.db.patch(args.id, updatePayload);
   },
 });
 
