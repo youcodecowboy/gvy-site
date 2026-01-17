@@ -4,15 +4,15 @@ import { useEffect, useCallback, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { 
-  FileText, 
-  FolderPlus, 
-  Search, 
-  Settings, 
-  X, 
-  ChevronDown, 
-  ChevronRight, 
-  PanelLeftClose, 
+import {
+  FileText,
+  FolderPlus,
+  Search,
+  Settings,
+  X,
+  ChevronDown,
+  ChevronRight,
+  PanelLeftClose,
   PanelLeft,
   User as UserIcon,
   Building2,
@@ -40,7 +40,15 @@ export function Sidebar() {
   const { organization } = useOrganization()
   const { user } = useUser()
   const { resolvedTheme } = useTheme()
-  
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Determine logo source - only use theme after mounted to avoid hydration mismatch
+  const logoSrc = mounted && resolvedTheme === 'dark' ? '/1.png' : '/2.png'
+
   // Section expand states
   const [personalExpanded, setPersonalExpanded] = useState(true)
   const [orgExpanded, setOrgExpanded] = useState(true)
@@ -210,15 +218,6 @@ export function Sidebar() {
   // Collapsed view content
   const CollapsedContent = () => (
     <div className="flex flex-col items-center py-2 space-y-2">
-      <Link href="/app" className="mb-1">
-        <Image
-          src="/groovy.png"
-          alt="Home"
-          width={32}
-          height={32}
-          className="h-8 w-8 hover:opacity-80 transition-opacity"
-        />
-      </Link>
       {user?.imageUrl && (
         <img 
           src={user.imageUrl} 
@@ -285,7 +284,7 @@ export function Sidebar() {
             <>
               <Link href="/app" className="flex items-center hover:opacity-80 transition-opacity">
                 <Image
-                  src={resolvedTheme === 'dark' ? '/1.png' : '/2.png'}
+                  src={logoSrc}
                   alt="Logo"
                   width={242}
                   height={64}

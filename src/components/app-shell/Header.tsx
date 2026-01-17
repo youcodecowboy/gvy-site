@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Menu } from 'lucide-react'
@@ -19,6 +20,14 @@ interface HeaderProps {
 export function Header({ breadcrumbs = [] }: HeaderProps) {
   const { toggle, isCollapsed } = useSidebar()
   const { resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Determine logo source - only use theme after mounted to avoid hydration mismatch
+  const logoSrc = mounted && resolvedTheme === 'dark' ? '/1.png' : '/2.png'
 
   return (
     <header className="flex h-14 items-center justify-between border-b border-border px-4">
@@ -28,7 +37,7 @@ export function Header({ breadcrumbs = [] }: HeaderProps) {
         {isCollapsed && (
           <Link href="/app" className="hidden lg:flex items-center hover:opacity-80 transition-opacity">
             <Image
-              src={resolvedTheme === 'dark' ? '/1.png' : '/2.png'}
+              src={logoSrc}
               alt="Logo"
               width={242}
               height={64}
