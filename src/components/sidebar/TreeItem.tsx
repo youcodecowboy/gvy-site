@@ -8,7 +8,7 @@ import { ChevronRight, Folder, FileText, MoreHorizontal, GripVertical, Eye, Plus
 import { useTree } from './TreeContext'
 import { TreeContextMenu } from './TreeContextMenu'
 import type { Node } from '@/lib/mockTree'
-import { hasChildren as checkHasChildren, getChildren } from '@/lib/mockTree'
+import { hasChildren as checkHasChildren, getChildren, getDescendants } from '@/lib/mockTree'
 import { usePrefetch } from '@/hooks/usePrefetch'
 
 interface TreeItemProps {
@@ -55,7 +55,7 @@ export function TreeItem({ node, nodes, depth, activeId, overId, dropPosition }:
   const isFolder = node.type === 'folder'
   const expanded = isExpanded(node.id)
   const hasChildNodes = checkHasChildren(nodes, node.id)
-  const childCount = isFolder ? getChildren(nodes, node.id).length : 0
+  const childCount = isFolder ? getDescendants(nodes, node.id).filter(n => n.type === 'doc').length : 0
   
   // Get siblings for reordering
   const siblings = node.parentId 

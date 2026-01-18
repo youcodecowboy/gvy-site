@@ -69,6 +69,7 @@ import { ThemeToggle } from "@/components/tiptap-templates/simple/theme-toggle"
 
 // --- Lib ---
 import { handleImageUpload, MAX_FILE_SIZE } from "@/lib/tiptap-utils"
+import { transformPastedHTMLColors } from "@/lib/paste-color-handler"
 
 // --- Styles ---
 import "@/components/tiptap-templates/simple/simple-editor.scss"
@@ -200,6 +201,9 @@ export function SimpleEditor() {
         autocapitalize: "off",
         "aria-label": "Main content area, start typing to enter text.",
         class: "simple-editor",
+      },
+      transformPastedHTML(html) {
+        return transformPastedHTMLColors(html)
       },
     },
     extensions: [

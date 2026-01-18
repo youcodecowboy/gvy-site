@@ -77,6 +77,7 @@ import { AiProvider, useAi } from "@/contexts/ai-context"
 // --- Lib ---
 import { handleImageUpload, MAX_FILE_SIZE } from "@/lib/tiptap-utils"
 import { TIPTAP_AI_APP_ID } from "@/lib/tiptap-collab-utils"
+import { transformPastedHTMLColors } from "@/lib/paste-color-handler"
 
 // --- Styles ---
 import "@/components/tiptap-templates/notion-like/notion-like-editor.scss"
@@ -192,6 +193,9 @@ export function EditorProvider(props: EditorProviderProps) {
     editorProps: {
       attributes: {
         class: "notion-like-editor",
+      },
+      transformPastedHTML(html) {
+        return transformPastedHTMLColors(html)
       },
     },
     extensions: [

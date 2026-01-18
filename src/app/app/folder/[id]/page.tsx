@@ -14,6 +14,7 @@ import {
   FolderOpen,
   Hash,
   User,
+  Upload,
 } from 'lucide-react'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '../../../../../convex/_generated/api'
@@ -28,6 +29,7 @@ import { ContributorsPreview } from '@/components/dashboard/ContributorsPreview'
 import { FolderMentionsIndicator } from '@/components/dashboard/FolderMentionsIndicator'
 import { FolderMetadata } from '@/components/dashboard/FolderMetadata'
 import { FolderFlagButton } from '@/components/editor/FolderFlagButton'
+import { DocumentUploadButton, FolderDropZone } from '@/components/upload'
 
 // Simple description editor (plain textarea for now, can be upgraded to TipTap later)
 function DescriptionEditor({
@@ -389,8 +391,13 @@ export default function FolderPage() {
   const description = typeof folder.description === 'string' ? folder.description : ''
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      {/* Header */}
+    <FolderDropZone
+      folderId={id as Id<'nodes'>}
+      orgId={folder.orgId}
+      className="min-h-screen"
+    >
+      <div className="p-6 max-w-6xl mx-auto">
+        {/* Header */}
       <div className="mb-6">
         <div className="flex items-start gap-3 mb-3">
           {/* Icon */}
@@ -451,6 +458,11 @@ export default function FolderPage() {
             folderId={id}
             folderTitle={folder.title}
           />
+          <DocumentUploadButton
+            folderId={id as Id<'nodes'>}
+            orgId={folder.orgId}
+            variant="button"
+          />
         </div>
       </div>
 
@@ -501,29 +513,35 @@ export default function FolderPage() {
           </div>
           <h3 className="text-lg font-medium mb-1">This folder is empty</h3>
           <p className="text-sm text-muted-foreground mb-6">
-            Create a new document or folder to get started.
+            Create a new document, folder, or upload existing files.
           </p>
           <div className="flex gap-3">
-            <Button 
-              variant="secondary" 
+            <Button
+              variant="secondary"
               size="sm"
               leftIcon={<FolderPlus className="h-4 w-4" />}
               onClick={handleNewFolder}
             >
               New Folder
             </Button>
-            <Button 
+            <Button
               size="sm"
               leftIcon={<Plus className="h-4 w-4" />}
               onClick={handleNewDoc}
             >
               New Document
             </Button>
+            <DocumentUploadButton
+              folderId={id as Id<'nodes'>}
+              orgId={folder?.orgId}
+              variant="button"
+            />
           </div>
         </div>
       ) : (
         <TableOfContents items={descendants || []} currentFolderId={id} />
       )}
-    </div>
+      </div>
+    </FolderDropZone>
   )
 }

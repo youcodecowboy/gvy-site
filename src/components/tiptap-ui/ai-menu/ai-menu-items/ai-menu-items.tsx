@@ -55,6 +55,18 @@ import { TextReduceIcon } from "@/components/tiptap-icons/text-reduce-icon"
 import { CompleteSentenceIcon } from "@/components/tiptap-icons/complete-sentence-icon"
 import { SmileAiIcon } from "@/components/tiptap-icons/smile-ai-icon"
 import { CheckAiIcon } from "@/components/tiptap-icons/check-ai-icon"
+import { ListIcon } from "@/components/tiptap-icons/list-icon"
+
+const AUTO_FORMAT_PROMPT = `Format this document with proper structure:
+- Use appropriate headings (h1, h2, h3) based on content hierarchy
+- Convert lists of items into bullet points or numbered lists
+- Use bold for key terms and emphasis
+- Use proper paragraph breaks for readability
+
+IMPORTANT: Preserve ALL original content - do not summarize or remove any information. Only improve the structure and formatting.
+
+Document to format:
+`
 
 function initializeEditorMenuActions(): Record<
   MenuActionIdentifier,
@@ -255,6 +267,48 @@ function initializeEditorMenuActions(): Record<
       label: "Languages",
       value: "translateTo",
     },
+    autoFormat: {
+      type: "executable",
+      icon: <ListIcon className="tiptap-button-icon" />,
+      label: "Auto Format",
+      value: "autoFormat",
+      onSelect: ({ editor, options }) => {
+        if (!editor) return
+
+        // Select all content in the document
+        editor.commands.selectAll()
+
+        const { state } = editor
+        const { from, to } = state.selection
+        const selectionContent = state.selection.content()
+
+        // Get text content
+        const textContent = selectionContent.content.textBetween(
+          0,
+          selectionContent.content.size,
+          "\n"
+        )
+
+        if (!textContent || textContent.trim().length === 0) {
+          return
+        }
+
+        // Combine prompt with content
+        const promptWithContent = AUTO_FORMAT_PROMPT + textContent
+
+        editor
+          .chain()
+          .focus()
+          .aiTextPrompt({
+            ...options,
+            text: promptWithContent,
+            stream: true,
+            format: "rich-text",
+            insertAt: { from, to },
+          })
+          .run()
+      },
+    },
   }
 }
 
@@ -269,6 +323,12 @@ function mapInteractionContextToActions(
   })
 
   const grouped: Action[] = [
+    {
+      label: "Format",
+      items: Object.values([
+        menuActions.autoFormat,
+      ]).map(convertToMenuAction),
+    },
     {
       label: "Edit",
       items: Object.values([

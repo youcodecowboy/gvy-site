@@ -2,9 +2,13 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Pencil, Trash2, FileText, FolderPlus, MoveRight } from 'lucide-react'
+import { Pencil, Trash2, FileText, FolderPlus, MoveRight, Upload } from 'lucide-react'
+import { useOrganization } from '@clerk/nextjs'
 import { useTree } from './TreeContext'
+import { useNavigation } from '@/components/app-shell'
+import { DocumentUploadButton } from '@/components/upload'
 import type { Node as TreeNode } from '@/lib/mockTree'
+import type { Id } from '../../../convex/_generated/dataModel'
 
 interface TreeContextMenuProps {
   node: TreeNode
@@ -14,9 +18,12 @@ interface TreeContextMenuProps {
 
 export function TreeContextMenu({ node, position, onClose }: TreeContextMenuProps) {
   const { startRename, onDelete, onNewDoc, onNewFolder, startMove } = useTree()
+  const { organization } = useOrganization()
+  const { currentSection } = useNavigation()
   const menuRef = useRef<HTMLDivElement>(null)
 
   const isFolder = node.type === 'folder'
+  const isOrgSection = currentSection === 'organization' && organization?.id
 
   // Close on click outside
   useEffect(() => {
@@ -142,6 +149,13 @@ export function TreeContextMenu({ node, position, onClose }: TreeContextMenuProp
             <FolderPlus className="h-4 w-4 text-muted-foreground" />
             New Folder
           </button>
+
+          <DocumentUploadButton
+            folderId={node.id as Id<'nodes'>}
+            orgId={isOrgSection ? organization?.id : undefined}
+            variant="menu-item"
+            onComplete={onClose}
+          />
         </>
       )}
     </div>

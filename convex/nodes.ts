@@ -171,6 +171,74 @@ export const create = mutation({
   },
 });
 
+// Create a new doc with initial content (for file uploads)
+export const createWithContent = mutation({
+  args: {
+    parentId: v.union(v.id("nodes"), v.null()),
+    title: v.string(),
+    content: v.any(),
+    orgId: v.optional(v.string()),
+    sourceFile: v.optional(
+      v.object({
+        name: v.string(),
+        type: v.string(),
+        size: v.number(),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    // Get the max order for siblings
+    let lastSibling;
+    if (args.orgId) {
+      lastSibling = await ctx.db
+        .query("nodes")
+        .withIndex("by_org_parent_order", (q) =>
+          q.eq("orgId", args.orgId).eq("parentId", args.parentId)
+        )
+        .order("desc")
+        .first();
+    } else {
+      lastSibling = await ctx.db
+        .query("nodes")
+        .withIndex("by_owner_parent_order", (q) =>
+          q.eq("ownerId", identity.subject).eq("parentId", args.parentId)
+        )
+        .order("desc")
+        .first();
+    }
+
+    const maxOrder = lastSibling?.order ?? -1;
+    const now = Date.now();
+    const userName = identity.name || identity.nickname || "Unknown";
+
+    const nodeId = await ctx.db.insert("nodes", {
+      type: "doc",
+      parentId: args.parentId,
+      title: args.title,
+      order: maxOrder + 1,
+      content: args.content,
+      status: "draft",
+      ownerId: args.orgId ? undefined : identity.subject,
+      orgId: args.orgId,
+      updatedAt: now,
+      updatedBy: identity.subject,
+      updatedByName: userName,
+      // Initialize versioning
+      currentMajorVersion: 1,
+      currentMinorVersion: 0,
+      currentVersionString: "v1.0",
+      lastVersionSnapshotAt: now,
+    });
+
+    return nodeId;
+  },
+});
+
 // Update a node's title
 export const updateTitle = mutation({
   args: {

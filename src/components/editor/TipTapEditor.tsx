@@ -84,6 +84,9 @@ import { AiMenu } from '@/components/tiptap-ui/ai-menu'
 // --- Floating Toolbar ---
 import { NotionToolbarFloating } from '@/components/tiptap-templates/notion-like/notion-like-editor-toolbar-floating'
 
+// --- Auto Format Button ---
+import { AutoFormatButton } from '@/components/tiptap-ui/auto-format-button'
+
 // --- Contexts ---
 import { UserProvider, useTiptapUser } from '@/contexts/user-context'
 import { useToc } from '@/components/tiptap-node/toc-node/context/toc-context'
@@ -93,13 +96,14 @@ import { useIsBreakpoint } from '@/hooks/use-is-breakpoint'
 
 // --- Lib ---
 import { MAX_FILE_SIZE } from '@/lib/tiptap-utils'
-import { 
-  fetchAiToken, 
+import {
+  fetchAiToken,
   fetchCollabToken,
   TIPTAP_AI_APP_ID,
   TIPTAP_COLLAB_APP_ID,
   TIPTAP_COLLAB_DOC_PREFIX,
 } from '@/lib/tiptap-collab-utils'
+import { transformPastedHTMLColors } from '@/lib/paste-color-handler'
 
 // --- Node Styles ---
 import '@/components/tiptap-node/blockquote-node/blockquote-node.scss'
@@ -223,6 +227,12 @@ function MainToolbarContent({
           docTitle={docTitle || 'Untitled'}
           versionString={versionString}
         />
+      </ToolbarGroup>
+
+      <ToolbarSeparator />
+
+      <ToolbarGroup>
+        <AutoFormatButton />
       </ToolbarGroup>
 
       {hasProvider && onToggleComments && (
@@ -531,6 +541,9 @@ function TipTapEditorInner({
         'aria-label': 'Document editor',
         class: 'notion-like-editor',
       },
+      transformPastedHTML(html) {
+        return transformPastedHTMLColors(html)
+      },
     },
     extensions: [
       StarterKit.configure({
@@ -746,6 +759,73 @@ function TipTapEditorInner({
       })
     }
   }, [isSynced, isCloudEmpty, editor, initialContent])
+
+  // Auto-format PDF uploads
+  const hasTriggeredAutoFormatRef = useRef(false)
+  useEffect(() => {
+    if (!editor || hasTriggeredAutoFormatRef.current) return
+    if (!('aiTextPrompt' in editor.commands)) return
+
+    // Check if this document needs auto-formatting
+    try {
+      const pendingAutoFormat = JSON.parse(
+        localStorage.getItem('pendingAutoFormat') || '[]'
+      )
+
+      if (pendingAutoFormat.includes(docId)) {
+        // Remove from pending list
+        const updatedList = pendingAutoFormat.filter((id: string) => id !== docId)
+        localStorage.setItem('pendingAutoFormat', JSON.stringify(updatedList))
+
+        hasTriggeredAutoFormatRef.current = true
+
+        // Wait for editor to be fully ready, then trigger auto-format
+        const timeout = setTimeout(() => {
+          const AUTO_FORMAT_PROMPT = `Format this document with proper structure:
+- Use appropriate headings (h1, h2, h3) based on content hierarchy
+- Convert lists of items into bullet points or numbered lists
+- Use bold for key terms and emphasis
+- Use proper paragraph breaks for readability
+
+IMPORTANT: Preserve ALL original content - do not summarize or remove any information. Only improve the structure and formatting.
+
+Document to format:
+`
+          // Select all content
+          editor.commands.selectAll()
+
+          const { state } = editor
+          const { from, to } = state.selection
+          const selectionContent = state.selection.content()
+
+          const textContent = selectionContent.content.textBetween(
+            0,
+            selectionContent.content.size,
+            '\n'
+          )
+
+          if (textContent && textContent.trim().length > 0) {
+            const promptWithContent = AUTO_FORMAT_PROMPT + textContent
+
+            editor
+              .chain()
+              .focus()
+              .aiTextPrompt({
+                text: promptWithContent,
+                stream: true,
+                format: 'rich-text',
+                insertAt: { from, to },
+              })
+              .run()
+          }
+        }, 1000) // Wait for editor to be fully initialized
+
+        return () => clearTimeout(timeout)
+      }
+    } catch (error) {
+      console.error('Error checking pending auto-format:', error)
+    }
+  }, [editor, docId])
 
   // Scroll to position when navigating from a flag link
   const hasScrolledToFlagRef = useRef(false)

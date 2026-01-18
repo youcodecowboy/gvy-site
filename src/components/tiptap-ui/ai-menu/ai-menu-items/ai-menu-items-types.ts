@@ -39,6 +39,7 @@ export type MenuActionIdentifier =
   | "continueWriting"
   | "summarize"
   | "translateTo"
+  | "autoFormat"
 
 export interface MenuActionRendererProps {
   menuItem: Action
