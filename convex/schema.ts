@@ -369,10 +369,15 @@ export default defineSchema({
     userAvatar: v.optional(v.string()),
     userColor: v.string(),
 
-    // Current location - what document/page they're viewing
+    // Current location - what document/folder/page they're viewing
+    currentNodeId: v.optional(v.id("nodes")),
+    currentNodeTitle: v.optional(v.string()),
+    currentNodeType: v.optional(v.union(v.literal("doc"), v.literal("folder"))),
+    currentPath: v.string(),
+
+    // Legacy fields (kept for backward compatibility during migration)
     currentDocId: v.optional(v.id("nodes")),
     currentDocTitle: v.optional(v.string()),
-    currentPath: v.string(),
 
     // Heartbeat timestamp - used to determine if user is still online
     lastSeenAt: v.number(),
@@ -387,6 +392,42 @@ export default defineSchema({
     .index("by_user_session", ["userId", "sessionId"])
     .index("by_last_seen", ["lastSeenAt"])
     .index("by_org", ["orgId"]),
+
+  // Organization activity log for notifications
+  activity: defineTable({
+    // Type of activity
+    type: v.union(
+      v.literal("doc_created"),
+      v.literal("doc_updated"),
+      v.literal("doc_deleted"),
+      v.literal("folder_created"),
+      v.literal("folder_updated"),
+      v.literal("folder_deleted"),
+      v.literal("thread_created"),
+      v.literal("thread_resolved")
+    ),
+
+    // What changed
+    nodeId: v.optional(v.id("nodes")),
+    nodeTitle: v.string(),
+    nodeType: v.optional(v.union(v.literal("doc"), v.literal("folder"))),
+
+    // Who made the change
+    userId: v.string(),
+    userName: v.string(),
+
+    // Organization scope
+    orgId: v.optional(v.string()),
+
+    // When
+    createdAt: v.number(),
+
+    // Optional extra context
+    details: v.optional(v.string()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_created", ["orgId", "createdAt"])
+    .index("by_created", ["createdAt"]),
 
   // Export history - tracks all document exports (PDF, DOCX)
   exportHistory: defineTable({

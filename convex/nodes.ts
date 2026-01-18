@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 
 // Get all nodes for the current user (personal) or organization
 export const list = query({
@@ -167,6 +168,18 @@ export const create = mutation({
       orgId: args.orgId,
     });
 
+    // Log activity
+    const userName = identity.name || (identity as any).nickname || "Anonymous";
+    await ctx.runMutation(internal.activity.recordActivity, {
+      type: args.type === "doc" ? "doc_created" : "folder_created",
+      nodeId,
+      nodeTitle: args.title,
+      nodeType: args.type,
+      userId: identity.subject,
+      userName,
+      orgId: args.orgId,
+    });
+
     return nodeId;
   },
 });
@@ -233,6 +246,18 @@ export const createWithContent = mutation({
       currentMinorVersion: 0,
       currentVersionString: "v1.0",
       lastVersionSnapshotAt: now,
+    });
+
+    // Log activity
+    await ctx.runMutation(internal.activity.recordActivity, {
+      type: "doc_created",
+      nodeId,
+      nodeTitle: args.title,
+      nodeType: "doc",
+      userId: identity.subject,
+      userName,
+      orgId: args.orgId,
+      details: args.sourceFile ? `Uploaded from ${args.sourceFile.name}` : undefined,
     });
 
     return nodeId;
@@ -529,6 +554,18 @@ export const remove = mutation({
         deletedAt: Date.now(),
       });
     }
+
+    // Log activity
+    const userName = identity.name || (identity as any).nickname || "Anonymous";
+    await ctx.runMutation(internal.activity.recordActivity, {
+      type: node.type === "doc" ? "doc_deleted" : "folder_deleted",
+      nodeId: args.id,
+      nodeTitle: node.title,
+      nodeType: node.type,
+      userId: identity.subject,
+      userName,
+      orgId: node.orgId,
+    });
   },
 });
 

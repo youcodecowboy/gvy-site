@@ -34,8 +34,8 @@ export const heartbeat = mutation({
   args: {
     sessionId: v.string(),
     currentPath: v.string(),
-    currentDocId: v.optional(v.id("nodes")),
-    currentDocTitle: v.optional(v.string()),
+    currentNodeId: v.optional(v.id("nodes")),
+    currentNodeType: v.optional(v.union(v.literal("doc"), v.literal("folder"))),
     orgId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -59,19 +59,20 @@ export const heartbeat = mutation({
       )
       .unique();
 
-    // Get document title if docId provided but title not
-    let docTitle = args.currentDocTitle;
-    if (args.currentDocId && !docTitle) {
-      const doc = await ctx.db.get(args.currentDocId);
-      docTitle = doc?.title;
+    // Get node title if nodeId provided - works for both docs and folders
+    let nodeTitle: string | undefined;
+    if (args.currentNodeId) {
+      const node = await ctx.db.get(args.currentNodeId);
+      nodeTitle = node?.title;
     }
 
     if (existing) {
       // Update existing presence
       await ctx.db.patch(existing._id, {
         currentPath: args.currentPath,
-        currentDocId: args.currentDocId,
-        currentDocTitle: docTitle,
+        currentNodeId: args.currentNodeId,
+        currentNodeTitle: nodeTitle,
+        currentNodeType: args.currentNodeType,
         lastSeenAt: now,
         orgId: args.orgId,
         userName, // Update in case it changed
@@ -86,8 +87,9 @@ export const heartbeat = mutation({
         userAvatar,
         userColor,
         currentPath: args.currentPath,
-        currentDocId: args.currentDocId,
-        currentDocTitle: docTitle,
+        currentNodeId: args.currentNodeId,
+        currentNodeTitle: nodeTitle,
+        currentNodeType: args.currentNodeType,
         lastSeenAt: now,
         sessionId: args.sessionId,
         orgId: args.orgId,
@@ -121,6 +123,7 @@ export const leave = mutation({
 });
 
 // Get online users (for the indicator dropdown)
+// Includes current user first with isCurrentUser flag
 export const getOnlineUsers = query({
   args: {
     orgId: v.optional(v.string()),
@@ -156,8 +159,23 @@ export const getOnlineUsers = query({
       }
     }
 
-    // Convert to array, excluding current user
-    return Array.from(userMap.values())
+    // Get current user's presence data
+    const currentUserPresence = userMap.get(identity.subject);
+    const currentUserData = {
+      userId: identity.subject,
+      userName: identity.name || (identity as any).nickname || "You",
+      userAvatar: (identity as any).pictureUrl || (identity as any).picture,
+      userColor: getColorFromUserId(identity.subject),
+      currentPath: currentUserPresence?.currentPath ?? "",
+      currentNodeId: currentUserPresence?.currentNodeId,
+      currentNodeTitle: currentUserPresence?.currentNodeTitle,
+      currentNodeType: currentUserPresence?.currentNodeType,
+      lastSeenAt: Date.now(),
+      isCurrentUser: true,
+    };
+
+    // Get other users
+    const otherUsers = Array.from(userMap.values())
       .filter((u) => u.userId !== identity.subject)
       .map((u) => ({
         userId: u.userId,
@@ -165,14 +183,20 @@ export const getOnlineUsers = query({
         userAvatar: u.userAvatar,
         userColor: u.userColor,
         currentPath: u.currentPath,
-        currentDocId: u.currentDocId,
-        currentDocTitle: u.currentDocTitle,
+        currentNodeId: u.currentNodeId,
+        currentNodeTitle: u.currentNodeTitle,
+        currentNodeType: u.currentNodeType,
         lastSeenAt: u.lastSeenAt,
+        isCurrentUser: false,
       }));
+
+    // Return current user first, then others
+    return [currentUserData, ...otherUsers];
   },
 });
 
 // Get count of online users (lightweight query for badge)
+// Includes current user in count (always >= 1 when authenticated)
 export const getOnlineCount = query({
   args: {
     orgId: v.optional(v.string()),
@@ -195,12 +219,11 @@ export const getOnlineCount = query({
       return true;
     });
 
-    // Count unique users excluding self
-    const uniqueUsers = new Set(
-      activeRecords
-        .filter((r) => r.userId !== identity.subject)
-        .map((r) => r.userId)
-    );
+    // Count unique users (including self)
+    const uniqueUsers = new Set(activeRecords.map((r) => r.userId));
+
+    // Always include self even if no presence record exists yet
+    uniqueUsers.add(identity.subject);
 
     return uniqueUsers.size;
   },

@@ -10,18 +10,19 @@ interface OnlineUsersDropdownProps {
 
 function formatLocation(
   path: string,
-  docTitle?: string
+  nodeTitle?: string,
+  nodeType?: 'doc' | 'folder'
 ): { icon: typeof FileText; label: string } {
   if (path.includes('/doc/')) {
     return {
       icon: FileText,
-      label: docTitle || 'Document',
+      label: nodeTitle || 'Document',
     }
   }
   if (path.includes('/folder/')) {
     return {
       icon: Folder,
-      label: 'Folder',
+      label: nodeTitle || 'Folder',
     }
   }
   if (path === '/app' || path === '/app/') {
@@ -72,33 +73,26 @@ export function OnlineUsersDropdown({ onClose }: OnlineUsersDropdownProps) {
               </div>
             ))}
           </div>
-        ) : onlineUsers.length === 0 ? (
-          // Empty state
-          <div className="p-6 text-center">
-            <Users className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">No other users online</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Teammates will appear here when they&apos;re active
-            </p>
-          </div>
         ) : (
           // Users list
           <div className="divide-y divide-border">
             {onlineUsers.map((user) => {
               const location = formatLocation(
                 user.currentPath,
-                user.currentDocTitle
+                user.currentNodeTitle,
+                user.currentNodeType
               )
               const LocationIcon = location.icon
+              const displayName = user.isCurrentUser ? 'You' : user.userName
 
               const content = (
-                <div className="flex items-start gap-3 p-3 hover:bg-accent/50 transition-colors">
+                <div className={`flex items-start gap-3 p-3 transition-colors ${user.isCurrentUser ? 'bg-accent/30' : 'hover:bg-accent/50'}`}>
                   {/* Avatar */}
                   <div className="relative shrink-0">
                     {user.userAvatar ? (
                       <img
                         src={user.userAvatar}
-                        alt={user.userName}
+                        alt={displayName}
                         className="h-8 w-8 rounded-full object-cover"
                       />
                     ) : (
@@ -115,24 +109,39 @@ export function OnlineUsersDropdown({ onClose }: OnlineUsersDropdownProps) {
 
                   {/* User info */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{user.userName}</p>
+                    <p className="text-sm font-medium truncate">
+                      {displayName}
+                      {user.isCurrentUser && (
+                        <span className="ml-1.5 text-xs font-normal text-muted-foreground">(this is you)</span>
+                      )}
+                    </p>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <LocationIcon className="h-3 w-3 shrink-0" />
                       <span className="truncate">{location.label}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground/70 mt-0.5">
-                      {formatLastSeen(user.lastSeenAt)}
-                    </p>
+                    {!user.isCurrentUser && (
+                      <p className="text-xs text-muted-foreground/70 mt-0.5">
+                        {formatLastSeen(user.lastSeenAt)}
+                      </p>
+                    )}
                   </div>
                 </div>
               )
 
-              // Make clickable if viewing a document
-              if (user.currentDocId) {
+              // Current user is not clickable
+              if (user.isCurrentUser) {
+                return <div key={user.userId}>{content}</div>
+              }
+
+              // Make clickable if viewing a document or folder
+              if (user.currentNodeId && user.currentNodeType) {
+                const href = user.currentNodeType === 'doc'
+                  ? `/app/doc/${user.currentNodeId}`
+                  : `/app/folder/${user.currentNodeId}`
                 return (
                   <Link
                     key={user.userId}
-                    href={`/app/doc/${user.currentDocId}`}
+                    href={href}
                     onClick={onClose}
                     className="block"
                   >

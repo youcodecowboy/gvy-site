@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as activity from "../activity.js";
 import type * as comments from "../comments.js";
 import type * as dashboard from "../dashboard.js";
 import type * as exports from "../exports.js";
@@ -29,6 +30,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  activity: typeof activity;
   comments: typeof comments;
   dashboard: typeof dashboard;
   exports: typeof exports;

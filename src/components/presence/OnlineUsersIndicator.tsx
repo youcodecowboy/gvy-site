@@ -61,7 +61,7 @@ export function OnlineUsersIndicator() {
           ${isOpen ? 'bg-accent text-foreground' : ''}
         `}
         aria-label="Online users"
-        title={`${onlineCount} other user${onlineCount !== 1 ? 's' : ''} online`}
+        title={`${onlineCount} user${onlineCount !== 1 ? 's' : ''} online`}
       >
         <Users className="h-4 w-4" />
         {!isLoading && (

@@ -25,9 +25,11 @@ interface OnlineUser {
   userAvatar?: string;
   userColor: string;
   currentPath: string;
-  currentDocId?: Id<"nodes">;
-  currentDocTitle?: string;
+  currentNodeId?: Id<"nodes">;
+  currentNodeTitle?: string;
+  currentNodeType?: "doc" | "folder";
   lastSeenAt: number;
+  isCurrentUser: boolean;
 }
 
 interface PresenceContextValue {
@@ -66,30 +68,35 @@ export function PresenceProvider({ children }: { children: ReactNode }) {
   const onlineUsers = onlineUsersQuery ?? [];
   const onlineCount = onlineCountQuery ?? 0;
 
-  // Extract current document ID from path
-  const getCurrentDocId = useCallback((): Id<"nodes"> | undefined => {
+  // Extract current node ID and type from path
+  const getCurrentNode = useCallback((): { nodeId: Id<"nodes">; nodeType: "doc" | "folder" } | undefined => {
     const docMatch = pathname.match(/\/app\/doc\/([^\/]+)/);
     if (docMatch && docMatch[1]) {
-      return docMatch[1] as Id<"nodes">;
+      return { nodeId: docMatch[1] as Id<"nodes">, nodeType: "doc" };
+    }
+    const folderMatch = pathname.match(/\/app\/folder\/([^\/]+)/);
+    if (folderMatch && folderMatch[1]) {
+      return { nodeId: folderMatch[1] as Id<"nodes">, nodeType: "folder" };
     }
     return undefined;
   }, [pathname]);
 
   // Send heartbeat
   const sendHeartbeat = useCallback(async () => {
-    const docId = getCurrentDocId();
+    const currentNode = getCurrentNode();
 
     try {
       await heartbeat({
         sessionId: sessionIdRef.current,
         currentPath: pathname,
-        currentDocId: docId,
+        currentNodeId: currentNode?.nodeId,
+        currentNodeType: currentNode?.nodeType,
         orgId: organization?.id,
       });
     } catch (error) {
       console.error("Failed to send presence heartbeat:", error);
     }
-  }, [heartbeat, pathname, organization?.id, getCurrentDocId]);
+  }, [heartbeat, pathname, organization?.id, getCurrentNode]);
 
   // Start heartbeat loop
   useEffect(() => {

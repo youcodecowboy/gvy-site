@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 
 // ============================================================================
 // Thread Mutations
@@ -49,6 +50,18 @@ export const createThread = mutation({
       orgId: args.orgId,
       replyCount: 0,
       lastActivityAt: now,
+    });
+
+    // Log activity
+    await ctx.runMutation(internal.activity.recordActivity, {
+      type: "thread_created",
+      nodeId: args.docId,
+      nodeTitle: doc.title,
+      nodeType: "doc",
+      userId: authorId,
+      userName: authorName,
+      orgId: args.orgId,
+      details: args.title,
     });
 
     return threadId;
@@ -135,6 +148,18 @@ export const resolveThread = mutation({
         });
       }
     }
+
+    // Log activity
+    await ctx.runMutation(internal.activity.recordActivity, {
+      type: "thread_resolved",
+      nodeId: thread.docId,
+      nodeTitle: doc?.title || "Untitled",
+      nodeType: "doc",
+      userId,
+      userName,
+      orgId: thread.orgId,
+      details: thread.title,
+    });
 
     return true;
   },
