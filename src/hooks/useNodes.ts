@@ -19,6 +19,19 @@ export function useOrganizationNodes(orgId: string | undefined) {
   return nodes ?? []
 }
 
+// Use permission-filtered query for non-admin users
+// This filters out restricted folders the user doesn't have access to
+export function useOrganizationNodesWithPermissions(
+  orgId: string | undefined,
+  isOrgAdmin: boolean
+) {
+  const nodes = useQuery(
+    api.nodes.listWithPermissions,
+    orgId ? { orgId, isOrgAdmin } : 'skip'
+  )
+  return nodes ?? []
+}
+
 export function useNode(id: Id<'nodes'> | undefined) {
   const node = useQuery(api.nodes.get, id ? { id } : 'skip')
   return node

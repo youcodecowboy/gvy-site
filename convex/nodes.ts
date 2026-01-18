@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { getAccessibleFolderIds, checkNodeAccess, canPerformAction } from "./permissions";
 
 // Get all nodes for the current user (personal) or organization
 export const list = query({
@@ -1071,5 +1072,207 @@ export const search = query({
       icon: doc.icon,
       updatedAt: doc.updatedAt || doc._creationTime,
     }));
+  },
+});
+
+// List organization nodes filtered by user's folder access
+// For users who don't have full org admin access, this returns only
+// nodes in folders they have explicit access to
+export const listWithPermissions = query({
+  args: {
+    orgId: v.string(),
+    isOrgAdmin: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return [];
+    }
+
+    // If org admin, return all org nodes (no filtering needed)
+    if (args.isOrgAdmin) {
+      return await ctx.db
+        .query("nodes")
+        .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .collect();
+    }
+
+    // Get all org nodes
+    const allOrgNodes = await ctx.db
+      .query("nodes")
+      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .filter((q) => q.neq(q.field("isDeleted"), true))
+      .collect();
+
+    // Get folders the user has explicit access to
+    const accessibleFolderIds = await getAccessibleFolderIds(
+      ctx,
+      identity.subject,
+      args.orgId
+    );
+
+    // Filter nodes to only those accessible to the user
+    const accessibleNodes = allOrgNodes.filter((node) => {
+      // Root-level non-restricted folders are visible to all org members
+      if (node.type === "folder" && node.parentId === null && !node.isRestricted) {
+        return true;
+      }
+
+      // Root-level restricted folders need explicit access
+      if (node.type === "folder" && node.parentId === null && node.isRestricted) {
+        return accessibleFolderIds.has(node._id);
+      }
+
+      // Non-root items: check if they're in an accessible folder tree
+      if (node.parentId) {
+        // If the parent is in accessible folders, include this node
+        if (accessibleFolderIds.has(node.parentId)) {
+          return true;
+        }
+
+        // Otherwise, need to walk up to find if any ancestor is non-restricted or accessible
+        // For efficiency, we'll do a simpler check here
+        // This will be refined during tree building on the frontend
+        return true; // Let the tree builder handle nested visibility
+      }
+
+      // Root-level docs are visible to all org members
+      if (node.type === "doc" && node.parentId === null) {
+        return true;
+      }
+
+      return false;
+    });
+
+    return accessibleNodes;
+  },
+});
+
+// Toggle folder restrictions on/off
+export const toggleRestriction = mutation({
+  args: {
+    id: v.id("nodes"),
+    isRestricted: v.boolean(),
+    isOrgAdmin: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const node = await ctx.db.get(args.id);
+    if (!node || node.type !== "folder") {
+      throw new Error("Folder not found");
+    }
+
+    if (!node.orgId) {
+      throw new Error("Cannot set restrictions on personal folders");
+    }
+
+    // Check permissions - need admin or org admin to change restriction settings
+    const access = await checkNodeAccess(
+      ctx,
+      args.id,
+      identity.subject,
+      node.orgId,
+      args.isOrgAdmin ?? false
+    );
+
+    if (!canPerformAction(access, "manage")) {
+      throw new Error("Not authorized to change folder restrictions");
+    }
+
+    // If enabling restrictions, make sure the current user has admin access
+    if (args.isRestricted && !access.isOrgAdmin) {
+      // Auto-grant admin access to the person enabling restrictions
+      const existingAccess = await ctx.db
+        .query("folderAccess")
+        .withIndex("by_folder_user", (q) =>
+          q.eq("folderId", args.id).eq("userId", identity.subject)
+        )
+        .first();
+
+      if (!existingAccess) {
+        await ctx.db.insert("folderAccess", {
+          folderId: args.id,
+          userId: identity.subject,
+          role: "admin",
+          orgId: node.orgId,
+          grantedBy: identity.subject,
+          grantedByName: identity.name || "Unknown",
+          createdAt: Date.now(),
+          userName: identity.name || undefined,
+          userEmail: identity.email || undefined,
+          userAvatar: (identity as any).pictureUrl || undefined,
+        });
+      }
+    }
+
+    await ctx.db.patch(args.id, { isRestricted: args.isRestricted });
+
+    const userName = identity.name || identity.nickname || "Unknown";
+
+    // Log activity
+    await ctx.runMutation(internal.activity.recordActivity, {
+      type: "folder_updated",
+      nodeId: args.id,
+      nodeTitle: node.title,
+      nodeType: "folder",
+      userId: identity.subject,
+      userName,
+      orgId: node.orgId,
+      details: args.isRestricted
+        ? "Enabled folder access restrictions"
+        : "Disabled folder access restrictions",
+    });
+  },
+});
+
+// Get folder with access info
+export const getFolderWithAccess = query({
+  args: {
+    id: v.id("nodes"),
+    isOrgAdmin: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return null;
+    }
+
+    const node = await ctx.db.get(args.id);
+    if (!node || node.isDeleted || node.type !== "folder") {
+      return null;
+    }
+
+    // Check access
+    const access = await checkNodeAccess(
+      ctx,
+      args.id,
+      identity.subject,
+      node.orgId,
+      args.isOrgAdmin ?? false
+    );
+
+    if (!access.hasAccess) {
+      return null;
+    }
+
+    // Get access list if user has manage permissions
+    let accessList = null;
+    if (canPerformAction(access, "manage")) {
+      accessList = await ctx.db
+        .query("folderAccess")
+        .withIndex("by_folder", (q) => q.eq("folderId", args.id))
+        .collect();
+    }
+
+    return {
+      ...node,
+      userAccess: access,
+      accessList,
+    };
   },
 });

@@ -15,6 +15,7 @@ import {
   Hash,
   User,
   Upload,
+  Users,
 } from 'lucide-react'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '../../../../../convex/_generated/api'
@@ -30,6 +31,7 @@ import { FolderMentionsIndicator } from '@/components/dashboard/FolderMentionsIn
 import { FolderMetadata } from '@/components/dashboard/FolderMetadata'
 import { FolderFlagButton } from '@/components/editor/FolderFlagButton'
 import { DocumentUploadButton, FolderDropZone } from '@/components/upload'
+import { FolderPermissionsModal } from '@/components/permissions'
 
 // Simple description editor (plain textarea for now, can be upgraded to TipTap later)
 function DescriptionEditor({
@@ -241,6 +243,7 @@ export default function FolderPage() {
   // State
   const [title, setTitle] = useState('')
   const [isTitleFocused, setIsTitleFocused] = useState(false)
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false)
   
   const { setCurrentFolderId, setCurrentSection } = useNavigation()
   const { toast } = useToast()
@@ -463,6 +466,17 @@ export default function FolderPage() {
             orgId={folder.orgId}
             variant="button"
           />
+          {/* Share button - only for organization folders */}
+          {folder.orgId && (
+            <Button
+              size="sm"
+              variant="secondary"
+              leftIcon={<Users className="h-4 w-4" />}
+              onClick={() => setIsShareModalOpen(true)}
+            >
+              Share
+            </Button>
+          )}
         </div>
       </div>
 
@@ -542,6 +556,18 @@ export default function FolderPage() {
         <TableOfContents items={descendants || []} currentFolderId={id} />
       )}
       </div>
+
+      {/* Folder Permissions Modal */}
+      {folder.orgId && (
+        <FolderPermissionsModal
+          folderId={id}
+          folderTitle={folder.title}
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+          isRestricted={folder.isRestricted}
+          orgId={folder.orgId}
+        />
+      )}
     </FolderDropZone>
   )
 }

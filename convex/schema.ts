@@ -62,6 +62,10 @@ export default defineSchema({
     currentMinorVersion: v.optional(v.number()),   // Default: 0
     currentVersionString: v.optional(v.string()),  // e.g., "v1.0"
     lastVersionSnapshotAt: v.optional(v.number()), // For batching saves into versions
+
+    // Folder permissions - when true, folder uses granular access control
+    // instead of org-wide visibility
+    isRestricted: v.optional(v.boolean()),
   })
     .index("by_parent", ["parentId"])
     .index("by_owner", ["ownerId"])
@@ -459,4 +463,167 @@ export default defineSchema({
     .index("by_doc", ["docId"])
     .index("by_user", ["exportedBy"])
     .index("by_exported", ["exportedAt"]),
+
+  // Folder-level access permissions (for "data room" feature)
+  // Grants specific users access to restricted folders
+  folderAccess: defineTable({
+    // The folder this access applies to
+    folderId: v.id("nodes"),
+
+    // Clerk user ID who has access
+    userId: v.string(),
+
+    // Permission level
+    role: v.union(
+      v.literal("viewer"),  // Read-only access
+      v.literal("editor"),  // Can edit documents
+      v.literal("admin")    // Can edit, invite others, manage folder
+    ),
+
+    // Organization context (required - folder permissions work within orgs)
+    orgId: v.string(),
+
+    // Who granted this access
+    grantedBy: v.string(),
+    grantedByName: v.string(),
+
+    // When access was granted
+    createdAt: v.number(),
+
+    // Optional expiration for time-limited access
+    expiresAt: v.optional(v.number()),
+
+    // User info (denormalized for display without Clerk API calls)
+    userName: v.optional(v.string()),
+    userEmail: v.optional(v.string()),
+    userAvatar: v.optional(v.string()),
+  })
+    .index("by_folder", ["folderId"])
+    .index("by_user", ["userId"])
+    .index("by_folder_user", ["folderId", "userId"])
+    .index("by_org_user", ["orgId", "userId"])
+    .index("by_org", ["orgId"]),
+
+  // Pending folder invitations (email-based invites)
+  folderInvitations: defineTable({
+    // The folder being shared
+    folderId: v.id("nodes"),
+
+    // Folder title (for display in invitation)
+    folderTitle: v.string(),
+
+    // Invitee email address
+    email: v.string(),
+
+    // Permission level being granted
+    role: v.union(
+      v.literal("viewer"),
+      v.literal("editor"),
+      v.literal("admin")
+    ),
+
+    // Organization context
+    orgId: v.string(),
+    orgName: v.optional(v.string()),
+
+    // Unique invite token for shareable link
+    token: v.string(),
+
+    // Who created the invitation
+    invitedBy: v.string(),
+    invitedByName: v.string(),
+    invitedByEmail: v.optional(v.string()),
+
+    // Invitation status
+    status: v.union(
+      v.literal("pending"),
+      v.literal("accepted"),
+      v.literal("declined"),
+      v.literal("expired")
+    ),
+
+    // Timestamps
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    acceptedAt: v.optional(v.number()),
+
+    // Optional personal message from inviter
+    message: v.optional(v.string()),
+  })
+    .index("by_token", ["token"])
+    .index("by_email", ["email"])
+    .index("by_folder", ["folderId"])
+    .index("by_org", ["orgId"])
+    .index("by_status", ["status"])
+    .index("by_email_status", ["email", "status"]),
+
+  // Reusable shareable links for folders
+  shareLinks: defineTable({
+    // The folder being shared
+    folderId: v.id("nodes"),
+
+    // Folder title (for display)
+    folderTitle: v.string(),
+
+    // Unique token for the link
+    token: v.string(),
+
+    // Permission level for anyone using this link
+    role: v.union(
+      v.literal("viewer"),
+      v.literal("editor")
+      // Note: admin not allowed via share links for security
+    ),
+
+    // Organization context
+    orgId: v.string(),
+
+    // Who created the link
+    createdBy: v.string(),
+    createdByName: v.string(),
+
+    // Link settings
+    isActive: v.boolean(),
+    maxUses: v.optional(v.number()),
+    useCount: v.number(),
+
+    // Timestamps
+    createdAt: v.number(),
+    expiresAt: v.optional(v.number()),
+    lastUsedAt: v.optional(v.number()),
+  })
+    .index("by_token", ["token"])
+    .index("by_folder", ["folderId"])
+    .index("by_org", ["orgId"])
+    .index("by_active", ["isActive"]),
+
+  // Organization invite links - for inviting people to join the org
+  orgInviteLinks: defineTable({
+    // Organization being invited to
+    orgId: v.string(),
+    orgName: v.string(),
+
+    // Unique token for the link
+    token: v.string(),
+
+    // Default role for new members (from Clerk - typically "org:member")
+    defaultRole: v.string(),
+
+    // Who created the link
+    createdBy: v.string(),
+    createdByName: v.string(),
+
+    // Link settings
+    isActive: v.boolean(),
+    maxUses: v.optional(v.number()),
+    useCount: v.number(),
+
+    // Timestamps
+    createdAt: v.number(),
+    expiresAt: v.optional(v.number()),
+    lastUsedAt: v.optional(v.number()),
+  })
+    .index("by_token", ["token"])
+    .index("by_org", ["orgId"])
+    .index("by_active", ["isActive"]),
 });

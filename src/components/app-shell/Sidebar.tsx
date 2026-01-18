@@ -17,6 +17,7 @@ import {
   User as UserIcon,
   Building2,
   Plus,
+  UserPlus,
 } from 'lucide-react'
 import { IconButton, Divider, SidebarTreeSkeleton } from '@/components/ui'
 import { SidebarTree } from '@/components/sidebar'
@@ -24,9 +25,9 @@ import { useSidebar } from './SidebarContext'
 import { useNavigation } from './NavigationContext'
 import { useCommandPalette } from '@/components/CommandPalette'
 import { useToast } from '@/components/ui'
-import { usePersonalNodes, useOrganizationNodes, useCreateNode, useUpdateTitle, useRemoveNode, useMoveNode, useReorderNode } from '@/hooks/useNodes'
+import { usePersonalNodes, useOrganizationNodesWithPermissions, useCreateNode, useUpdateTitle, useRemoveNode, useMoveNode, useReorderNode } from '@/hooks/useNodes'
 import { useOrganization, useUser, OrganizationSwitcher } from '@clerk/nextjs'
-import { OrganizationSettingsModal } from '@/components/organization'
+import { OrganizationSettingsModal, OrgInviteModal } from '@/components/organization'
 import { useTheme } from 'next-themes'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { useDocCache } from '@/contexts/doc-cache-context'
@@ -37,8 +38,11 @@ export function Sidebar() {
   const { currentSection, currentFolderId, setCurrentSection } = useNavigation()
   const { open: openCommandPalette } = useCommandPalette()
   const { toast } = useToast()
-  const { organization } = useOrganization()
+  const { organization, membership } = useOrganization()
   const { user } = useUser()
+
+  // Check if user is org admin for permission filtering
+  const isOrgAdmin = membership?.role === 'org:admin' || membership?.role === 'admin'
   const { resolvedTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
@@ -55,10 +59,13 @@ export function Sidebar() {
   
   // Organization settings modal state
   const [isOrgSettingsOpen, setIsOrgSettingsOpen] = useState(false)
+
+  // Organization invite modal state
+  const [isOrgInviteOpen, setIsOrgInviteOpen] = useState(false)
   
-  // Convex data
+  // Convex data - use permission-filtered query for org nodes
   const personalNodes = usePersonalNodes()
-  const orgNodes = useOrganizationNodes(organization?.id)
+  const orgNodes = useOrganizationNodesWithPermissions(organization?.id, isOrgAdmin)
   const createNode = useCreateNode()
   const updateTitle = useUpdateTitle()
   const removeNode = useRemoveNode()
@@ -466,33 +473,47 @@ export function Sidebar() {
               </div>
 
               {/* My Organization Section */}
-              <div className="py-1">
-                <button
-                  onClick={() => {
-                    setOrgExpanded(!orgExpanded)
-                    if (organization) {
-                      setCurrentSection('organization')
-                    }
-                  }}
-                  className={`
-                    flex w-full items-center gap-2 px-3 py-2 text-sm
-                    hover:bg-sidebar-accent transition-colors
-                    ${currentSection === 'organization' ? 'text-foreground font-medium' : 'text-muted-foreground'}
-                  `}
-                >
-                  {orgExpanded ? (
-                    <ChevronDown className="h-4 w-4 shrink-0" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 shrink-0" />
+              <div className="py-1 group/org">
+                <div className="flex items-center">
+                  <button
+                    onClick={() => {
+                      setOrgExpanded(!orgExpanded)
+                      if (organization) {
+                        setCurrentSection('organization')
+                      }
+                    }}
+                    className={`
+                      flex flex-1 items-center gap-2 px-3 py-2 text-sm
+                      hover:bg-sidebar-accent transition-colors
+                      ${currentSection === 'organization' ? 'text-foreground font-medium' : 'text-muted-foreground'}
+                    `}
+                  >
+                    {orgExpanded ? (
+                      <ChevronDown className="h-4 w-4 shrink-0" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 shrink-0" />
+                    )}
+                    <Building2 className="h-4 w-4 shrink-0" />
+                    <span>{organization?.name || 'My Organization'}</span>
+                    {organization && (
+                      <span className="ml-auto text-xs text-muted-foreground group-hover/org:hidden">
+                        {orgDocCount}
+                      </span>
+                    )}
+                  </button>
+                  {organization && isOrgAdmin && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setIsOrgInviteOpen(true)
+                      }}
+                      className="hidden group-hover/org:flex items-center justify-center h-7 w-7 mr-2 rounded-md hover:bg-sidebar-accent text-muted-foreground hover:text-foreground transition-colors"
+                      title="Invite people to organization"
+                    >
+                      <UserPlus className="h-4 w-4" />
+                    </button>
                   )}
-                  <Building2 className="h-4 w-4 shrink-0" />
-                  <span>{organization?.name || 'My Organization'}</span>
-                  {organization && (
-                    <span className="ml-auto text-xs text-muted-foreground">
-                      {orgDocCount}
-                    </span>
-                  )}
-                </button>
+                </div>
                 
                 {orgExpanded && (
                   <>
@@ -561,9 +582,15 @@ export function Sidebar() {
       </aside>
       
       {/* Organization Settings Modal */}
-      <OrganizationSettingsModal 
-        isOpen={isOrgSettingsOpen} 
-        onClose={() => setIsOrgSettingsOpen(false)} 
+      <OrganizationSettingsModal
+        isOpen={isOrgSettingsOpen}
+        onClose={() => setIsOrgSettingsOpen(false)}
+      />
+
+      {/* Organization Invite Modal */}
+      <OrgInviteModal
+        isOpen={isOrgInviteOpen}
+        onClose={() => setIsOrgInviteOpen(false)}
       />
     </>
   )
