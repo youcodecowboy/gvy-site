@@ -140,6 +140,21 @@ export function AutoFormatButton({
     }
   }, [editor])
 
+  const handleCancel = useCallback(() => {
+    if (!editor) return
+    // Use aiReject with reset type to cancel during loading
+    if ('aiReject' in editor.commands) {
+      editor.commands.aiReject({ type: 'reset' })
+    }
+    // Reset UI states
+    if ('aiGenerationSetIsLoading' in editor.commands) {
+      editor.commands.aiGenerationSetIsLoading(false)
+    }
+    if ('aiGenerationHasMessage' in editor.commands) {
+      editor.commands.aiGenerationHasMessage(false)
+    }
+  }, [editor])
+
   if (!editor) return null
 
   const isEditable = editor.isEditable
@@ -170,17 +185,23 @@ export function AutoFormatButton({
     )
   }
 
-  // Show loading state
+  // Show loading state with cancel button
   if (aiState.isLoading) {
     return (
-      <button
-        disabled
-        className="flex items-center gap-1.5 px-2 py-1 rounded text-sm transition-colors bg-blue-600 text-white cursor-wait"
-        title="Formatting..."
-      >
-        <ListIcon className="h-4 w-4 animate-pulse" />
-        {showLabel && <span>Formatting...</span>}
-      </button>
+      <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded text-sm bg-blue-600 text-white">
+          <ListIcon className="h-4 w-4 animate-pulse" />
+          {showLabel && <span>Formatting...</span>}
+        </div>
+        <button
+          onClick={handleCancel}
+          className="flex items-center gap-1.5 px-2 py-1 rounded text-sm transition-colors bg-red-600 hover:bg-red-700 text-white"
+          title="Cancel formatting"
+        >
+          <XIcon className="h-4 w-4" />
+          {showLabel && <span>Cancel</span>}
+        </button>
+      </div>
     )
   }
 

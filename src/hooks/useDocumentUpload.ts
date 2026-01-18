@@ -140,17 +140,6 @@ export function useDocumentUpload(
           },
         })
 
-        // Mark PDF uploads for auto-formatting
-        const fileExt = metadata.fileType || ext
-        if (fileExt === '.pdf') {
-          // Store in localStorage to trigger auto-format when document opens
-          const pendingAutoFormat = JSON.parse(
-            localStorage.getItem('pendingAutoFormat') || '[]'
-          )
-          pendingAutoFormat.push(docId)
-          localStorage.setItem('pendingAutoFormat', JSON.stringify(pendingAutoFormat))
-        }
-
         updateFile(id, {
           status: 'success',
           progress: 100,

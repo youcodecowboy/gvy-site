@@ -4,14 +4,6 @@ export interface ParseResult {
   wordCount: number
 }
 
-interface PdfData {
-  text: string
-  info?: {
-    Title?: string
-    [key: string]: unknown
-  }
-}
-
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
@@ -21,10 +13,10 @@ function escapeHtml(text: string): string {
     .replace(/'/g, '&#039;')
 }
 
-function extractTitle(text: string, pdfInfo?: PdfData['info']): string {
+function extractTitle(text: string, metadata?: { title?: string }): string {
   // Try PDF metadata first
-  if (pdfInfo?.Title && typeof pdfInfo.Title === 'string') {
-    return pdfInfo.Title.trim()
+  if (metadata?.title && typeof metadata.title === 'string') {
+    return metadata.title.trim()
   }
 
   // Fall back to first line of text
@@ -46,34 +38,27 @@ function countWords(text: string): number {
 }
 
 export async function parsePdf(buffer: Buffer): Promise<ParseResult> {
-  // Dynamic import for the pdf-parse module (v2.x with PDFParse class)
-  const { PDFParse } = await import('pdf-parse')
+  // Use unpdf which is designed for serverless/edge environments
+  const { extractText, getMeta } = await import('unpdf')
 
-  // Convert Buffer to Uint8Array as required by pdfjs-dist
+  // Convert Buffer to Uint8Array
   const uint8Array = new Uint8Array(buffer)
 
-  // Create parser - the library handles loading internally when calling public methods
-  const parser = new PDFParse({ data: uint8Array })
+  // Extract text from PDF - returns array of strings (one per page)
+  const { text } = await extractText(uint8Array)
+  // Join pages with double newlines to preserve page breaks
+  const extractedText = Array.isArray(text) ? text.join('\n\n') : (text || '')
 
-  // getText returns a TextResult object with a .text property
-  // This also triggers the internal load
-  const textResult = await parser.getText()
-  const text = textResult.text || ''
-
-  // getInfo returns an InfoResult object - extract the metadata we need
-  let info: PdfData['info'] = {}
+  // Try to get metadata
+  let metadata: { title?: string } = {}
   try {
-    const infoResult = await parser.getInfo()
-    // Extract title from the info dictionary if available
-    // infoResult.info contains fields like Title, Author, Subject, Creator, etc.
-    if (infoResult.info?.Title) {
-      info = { Title: String(infoResult.info.Title) }
+    const meta = await getMeta(uint8Array)
+    if (meta.info?.Title) {
+      metadata = { title: String(meta.info.Title) }
     }
   } catch {
-    // Info might not be available for all PDFs
+    // Metadata might not be available for all PDFs
   }
-
-  const extractedText = text
 
   // Split into paragraphs - PDFs often have weird spacing
   const paragraphs = extractedText
@@ -83,7 +68,7 @@ export async function parsePdf(buffer: Buffer): Promise<ParseResult> {
 
   const html = paragraphs.map((p: string) => `<p>${escapeHtml(p)}</p>`).join('\n')
 
-  const title = extractTitle(extractedText, info)
+  const title = extractTitle(extractedText, metadata)
   const wordCount = countWords(extractedText)
 
   return { html, title, wordCount }
