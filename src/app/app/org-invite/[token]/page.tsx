@@ -9,6 +9,21 @@ import { Button, Skeleton } from '@/components/ui'
 import { Building2, AlertCircle, CheckCircle, Clock, Link as LinkIcon, Users, LogIn } from 'lucide-react'
 import Link from 'next/link'
 
+// Storage key for pending org invites
+const PENDING_ORG_INVITE_KEY = 'pending_org_invite_token'
+const PENDING_ORG_INVITE_COOKIE = 'pending_org_invite'
+
+// Helper to set cookie
+function setCookie(name: string, value: string, days: number = 1) {
+  const expires = new Date(Date.now() + days * 864e5).toUTCString()
+  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`
+}
+
+// Helper to delete cookie
+function deleteCookie(name: string) {
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`
+}
+
 export default function OrgInvitePage() {
   const params = useParams()
   const router = useRouter()
@@ -39,6 +54,9 @@ export default function OrgInvitePage() {
 
     // If already a member, just redirect
     if (isAlreadyMember) {
+      // Clear any stored invite token
+      localStorage.removeItem(PENDING_ORG_INVITE_KEY)
+      deleteCookie(PENDING_ORG_INVITE_COOKIE)
       await setActive({ organization: inviteLink.orgId })
       router.push('/app')
       return
@@ -61,12 +79,22 @@ export default function OrgInvitePage() {
         throw new Error(result.error || 'Failed to join organization')
       }
 
+      // Clear stored invite token on success
+      localStorage.removeItem(PENDING_ORG_INVITE_KEY)
+      deleteCookie(PENDING_ORG_INVITE_COOKIE)
+
       // Record the use in Convex
-      await recordUse({ token })
+      try {
+        await recordUse({ token })
+      } catch (e) {
+        // Non-critical, continue
+        console.log('Could not record invite use:', e)
+      }
 
       setSuccess(true)
 
-      // Switch to the new org and redirect after a short delay
+      // Reload user memberships to get the new org
+      // Then switch to the new org and redirect after a short delay
       setTimeout(async () => {
         if (setActive) {
           await setActive({ organization: inviteLink.orgId })
@@ -74,11 +102,20 @@ export default function OrgInvitePage() {
         router.push('/app')
       }, 1500)
     } catch (err: any) {
+      console.error('Join error:', err)
       setError(err.message || 'Failed to join organization')
     } finally {
       setIsJoining(false)
     }
   }, [inviteLink, user, setActive, isAlreadyMember, token, recordUse, router])
+
+  // Store token for redirect flow (in case user gets redirected during sign-up)
+  useEffect(() => {
+    if (token && inviteLink?.isUsable) {
+      localStorage.setItem(PENDING_ORG_INVITE_KEY, token)
+      setCookie(PENDING_ORG_INVITE_COOKIE, token)
+    }
+  }, [token, inviteLink?.isUsable])
 
   // Auto-join if signed in and link is valid
   useEffect(() => {
@@ -95,6 +132,19 @@ export default function OrgInvitePage() {
       handleJoin()
     }
   }, [inviteLink, isSignedIn, userLoaded, orgListLoaded, success, error, handleJoin])
+
+  // Handle sign-in/sign-up redirect
+  const handleAuthRedirect = (type: 'sign-in' | 'sign-up') => {
+    // Store the token before redirecting (both localStorage and cookie for reliability)
+    localStorage.setItem(PENDING_ORG_INVITE_KEY, token)
+    setCookie(PENDING_ORG_INVITE_COOKIE, token)
+
+    // Get the full URL for the redirect
+    const currentUrl = window.location.href
+    const encodedRedirect = encodeURIComponent(currentUrl)
+
+    router.push(`/${type}?redirect_url=${encodedRedirect}`)
+  }
 
   // Loading state
   if (inviteLink === undefined || !userLoaded || !orgListLoaded) {
@@ -241,17 +291,13 @@ export default function OrgInvitePage() {
               <p className="text-sm text-center text-muted-foreground mb-4">
                 Sign in or create an account to accept this invitation
               </p>
-              <Link href={`/sign-in?redirect_url=/app/org-invite/${token}`} className="block">
-                <Button className="w-full">
-                  <LogIn className="h-4 w-4 mr-2" />
-                  Sign In
-                </Button>
-              </Link>
-              <Link href={`/sign-up?redirect_url=/app/org-invite/${token}`} className="block">
-                <Button variant="secondary" className="w-full">
-                  Create Account
-                </Button>
-              </Link>
+              <Button className="w-full" onClick={() => handleAuthRedirect('sign-in')}>
+                <LogIn className="h-4 w-4 mr-2" />
+                Sign In
+              </Button>
+              <Button variant="secondary" className="w-full" onClick={() => handleAuthRedirect('sign-up')}>
+                Create Account
+              </Button>
             </div>
           </div>
         </div>

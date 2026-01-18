@@ -1,12 +1,27 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { FileText, FolderOpen, Plus, Clock, Users, Bell, MessageSquare, Flag } from 'lucide-react'
 import { useQuery } from 'convex/react'
 import { useOrganization } from '@clerk/nextjs'
 import { api } from '../../../convex/_generated/api'
 import { Skeleton } from '@/components/ui'
 import { useNavigation } from '@/components/app-shell'
+
+const PENDING_ORG_INVITE_KEY = 'pending_org_invite_token'
+const PENDING_ORG_INVITE_COOKIE = 'pending_org_invite'
+
+// Helper to get cookie value
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'))
+  return match ? decodeURIComponent(match[2]) : null
+}
+
+// Helper to delete cookie
+function deleteCookie(name: string) {
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`
+}
 import {
   Greeting,
   MetricCard,
@@ -21,9 +36,29 @@ import {
 import { usePrefetch } from '@/hooks/usePrefetch'
 
 export default function AppPage() {
+  const router = useRouter()
   const { organization } = useOrganization()
   const { setCurrentFolderId } = useNavigation()
   const { prefetchDoc, prefetchDocs } = usePrefetch()
+  const [checkingPendingInvite, setCheckingPendingInvite] = useState(true)
+
+  // Check for pending org invite token and redirect if found
+  useEffect(() => {
+    // Check both localStorage and cookie for the token
+    const localStorageToken = localStorage.getItem(PENDING_ORG_INVITE_KEY)
+    const cookieToken = getCookie(PENDING_ORG_INVITE_COOKIE)
+    const pendingToken = localStorageToken || cookieToken
+
+    if (pendingToken) {
+      // Clear both to prevent redirect loops
+      localStorage.removeItem(PENDING_ORG_INVITE_KEY)
+      deleteCookie(PENDING_ORG_INVITE_COOKIE)
+      // Redirect to the org invite page to complete the join flow
+      router.push(`/app/org-invite/${pendingToken}`)
+    } else {
+      setCheckingPendingInvite(false)
+    }
+  }, [router])
 
   // Get dashboard data
   const dashboardData = useQuery(api.dashboard.getHomePageData, {
@@ -58,6 +93,18 @@ export default function AppPage() {
       }
     }
   }, [dashboardData, prefetchDocs])
+
+  // Loading state while checking for pending invite
+  if (checkingPendingInvite) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto">
+        <div className="mb-8">
+          <Skeleton className="h-8 w-64 mb-2" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+      </div>
+    )
+  }
 
   // Loading state
   if (dashboardData === undefined) {
