@@ -195,6 +195,34 @@ export default function DocPage() {
     )
   }
 
+  // For temp IDs, show a lightweight placeholder while doc is being created
+  // This avoids slow TipTap Cloud initialization for documents that don't exist yet
+  if (isTempId) {
+    return (
+      <div className="min-h-full">
+        <div className="w-full max-w-5xl xl:max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex items-start gap-3 mb-6">
+            <div className="w-9 h-9 rounded bg-muted flex items-center justify-center">
+              <FileText className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-semibold">Untitled</h1>
+              <p className="text-sm text-muted-foreground">Creating document...</p>
+            </div>
+          </div>
+          <div className="prose prose-sm max-w-none">
+            <div className="h-64 border border-dashed border-border rounded-lg flex items-center justify-center">
+              <div className="text-center text-muted-foreground">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-3"></div>
+                <p>Setting up your document...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <TocProvider>
       <div className="min-h-full">
