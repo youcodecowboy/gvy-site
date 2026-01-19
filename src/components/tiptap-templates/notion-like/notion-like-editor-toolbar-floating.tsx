@@ -1,7 +1,5 @@
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState } from "react"
 import { type Editor } from "@tiptap/react"
-import { MessageSquare } from "lucide-react"
-import { NewThreadPopover } from "@/components/tiptap-ui/thread-popover/thread-popover"
 import { FlagButton } from "@/components/tiptap-ui/flag-button"
 import { ThreadButton } from "@/components/threads/ThreadButton"
 
@@ -108,7 +106,6 @@ export function NotionToolbarFloating({ docId }: NotionToolbarFloatingProps) {
             hideWhenUnavailable={true}
           />
           <ColorTextPopover hideWhenUnavailable={true} />
-          <CommentButton editor={editor} />
           <ThreadButton editor={editor} docId={docId} />
           <FlagButton editor={editor} docId={docId} />
         </ToolbarGroup>
@@ -246,87 +243,3 @@ export function MoreOptions({
   )
 }
 
-interface CommentButtonProps {
-  editor: Editor | null
-}
-
-function CommentButton({ editor }: CommentButtonProps) {
-  const [canComment, setCanComment] = useState(false)
-  const [showPopover, setShowPopover] = useState(false)
-  const [popoverPosition, setPopoverPosition] = useState<{ top: number; left: number } | null>(null)
-
-  useEffect(() => {
-    if (!editor) return
-
-    const updateCanComment = () => {
-      const { from, to } = editor.state.selection
-      // Can add comment if there's a text selection
-      setCanComment(from !== to && editor.isEditable)
-    }
-
-    updateCanComment()
-    editor.on("selectionUpdate", updateCanComment)
-
-    return () => {
-      editor.off("selectionUpdate", updateCanComment)
-    }
-  }, [editor])
-
-  if (!canComment || !editor) {
-    return null
-  }
-
-  const handleClick = () => {
-    // Check if setThread command exists (CommentsKit is loaded)
-    if (!editor.commands.setThread) {
-      console.warn("Comments extension not available")
-      return
-    }
-
-    // Get selection position from the editor view
-    try {
-      const { from, to } = editor.state.selection
-      const start = editor.view.coordsAtPos(from)
-      const end = editor.view.coordsAtPos(to)
-      
-      // Position below the selection
-      setPopoverPosition({
-        top: Math.max(start.bottom, end.bottom) + 8,
-        left: Math.min(start.left, end.left),
-      })
-      setShowPopover(true)
-    } catch (e) {
-      // Fallback to selection API
-      const selection = window.getSelection()
-      if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0)
-        const rect = range.getBoundingClientRect()
-        setPopoverPosition({
-          top: rect.bottom + 8,
-          left: rect.left,
-        })
-        setShowPopover(true)
-      }
-    }
-  }
-
-  return (
-    <>
-      <Button
-        type="button"
-        data-style="ghost"
-        onClick={handleClick}
-        tooltip="Add comment"
-      >
-        <MessageSquare className="tiptap-button-icon h-4 w-4" />
-      </Button>
-      {showPopover && popoverPosition && (
-        <NewThreadPopover
-          editor={editor}
-          position={popoverPosition}
-          onClose={() => setShowPopover(false)}
-        />
-      )}
-    </>
-  )
-}

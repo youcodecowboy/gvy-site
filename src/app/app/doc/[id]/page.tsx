@@ -11,7 +11,6 @@ import { EmptyState, Button, Skeleton, useToast } from '@/components/ui'
 import { TipTapEditor, DocHeader } from '@/components/editor'
 import { useDocCache } from '@/contexts/doc-cache-context'
 import { TocProvider } from '@/components/tiptap-node/toc-node/context/toc-context'
-import { useTokenCache } from '@/contexts/token-cache-context'
 
 export default function DocPage() {
   const params = useParams()
@@ -33,9 +32,6 @@ export default function DocPage() {
   const hasShownLoadingRef = useRef(false)
   const prevIdRef = useRef<string | null>(null)
   const hasHandledFlagRef = useRef(false)
-
-  // Use globally cached tokens (fetched once on app load, refreshed every 50min)
-  const { aiToken, collabToken } = useTokenCache()
 
   // Thread count for the header button (skip for temp IDs)
   const threadCount = useQuery(
@@ -251,8 +247,6 @@ export default function DocPage() {
             versionString={displayDoc.currentVersionString ?? 'v1.0'}
             onSavingChange={setIsSaving}
             scrollToPosition={flagFrom && flagTo ? { from: parseInt(flagFrom), to: parseInt(flagTo) } : undefined}
-            aiToken={aiToken}
-            collabToken={collabToken}
             showThreads={showThreads}
             onToggleThreads={handleToggleThreads}
             threadCount={threadCount?.open ?? 0}
