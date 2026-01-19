@@ -343,14 +343,11 @@ function TipTapEditorInner({
   const [threadPopoverPosition, setThreadPopoverPosition] = useState<{ top: number; left: number } | null>(null)
   const [isSynced, setIsSynced] = useState(false)
   const [isCloudEmpty, setIsCloudEmpty] = useState(false)
+  const [isEditorReady, setIsEditorReady] = useState(false)
   const [pendingScrollPosition, setPendingScrollPosition] = useState<{ from: number; to: number } | null>(null)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const editorReadyTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // PERFORMANCE: Deferred collaboration loading
-  // Editor loads instantly with content from Convex, collaboration enables after delay
-  const [collaborationEnabled, setCollaborationEnabled] = useState(false)
-  const collaborationDelayRef = useRef<NodeJS.Timeout | null>(null)
-  
   // Use refs for values accessed in callbacks to prevent editor recreation
   const docIdRef = useRef(docId)
   const docTitleRef = useRef(docTitle)
@@ -376,49 +373,40 @@ function TipTapEditorInner({
     createMentionsRef.current = createMentions
   }, [docId, docTitle, user, onSavingChange, updateContent, createMentions])
 
-  // PERFORMANCE: Enable collaboration after content is displayed
-  // This gives instant content loading, then collaboration kicks in
+  // Reset state when document changes
   useEffect(() => {
-    // Clear any existing timeout
-    if (collaborationDelayRef.current) {
-      clearTimeout(collaborationDelayRef.current)
-    }
-
-    // Reset collaboration state when document changes
-    setCollaborationEnabled(false)
     setIsSynced(false)
     setIsCloudEmpty(false)
+    setIsEditorReady(false)
 
-    // Enable collaboration after a short delay (content will be visible first)
-    collaborationDelayRef.current = setTimeout(() => {
-      console.log('Enabling collaboration features...')
-      setCollaborationEnabled(true)
-    }, 100) // Small delay to ensure content renders first
+    // Clear any existing timeout
+    if (editorReadyTimeoutRef.current) {
+      clearTimeout(editorReadyTimeoutRef.current)
+    }
+
+    // Set a timeout to mark editor ready (fallback for non-collab mode or slow sync)
+    editorReadyTimeoutRef.current = setTimeout(() => {
+      console.log('Editor ready (timeout fallback)')
+      setIsEditorReady(true)
+    }, 500)
 
     return () => {
-      if (collaborationDelayRef.current) {
-        clearTimeout(collaborationDelayRef.current)
+      if (editorReadyTimeoutRef.current) {
+        clearTimeout(editorReadyTimeoutRef.current)
       }
     }
   }, [docId])
 
-  // Create Yjs document - only when collaboration is enabled
+  // Create Yjs document for each document
   const ydoc = useMemo(() => {
-    if (!collaborationEnabled) return null
+    console.log('Creating new YDoc for:', docId)
     return new YDoc()
-  }, [collaborationEnabled])
+  }, [docId])
 
-  // Create collaboration provider - only after collaborationEnabled is true
-  // This ensures content displays instantly, then collaboration loads
+  // Create collaboration provider
   const provider = useMemo(() => {
-    // PERFORMANCE: Don't create provider until collaboration is enabled
-    if (!collaborationEnabled) {
-      console.log('Collaboration deferred - loading content first')
-      return null
-    }
-
-    if (!collabToken || !TIPTAP_COLLAB_APP_ID || !ydoc) {
-      console.log('Collaboration disabled - no token, app ID, or ydoc')
+    if (!collabToken || !TIPTAP_COLLAB_APP_ID) {
+      console.log('Collaboration disabled - no token or app ID')
       return null
     }
 
@@ -436,6 +424,10 @@ function TipTapEditorInner({
       onSynced: () => {
         console.log('TipTap Cloud synced')
         setIsSynced(true)
+        // Clear the fallback timeout since we synced
+        if (editorReadyTimeoutRef.current) {
+          clearTimeout(editorReadyTimeoutRef.current)
+        }
         // Check if the Yjs doc is empty after syncing with TipTap Cloud
         const fragment = ydoc.getXmlFragment('default')
         console.log('Yjs fragment length after sync:', fragment.length)
@@ -443,11 +435,13 @@ function TipTapEditorInner({
           console.log('TipTap Cloud doc is empty, will initialize with Convex content')
           setIsCloudEmpty(true)
         }
+        // Mark editor as ready after sync completes
+        setIsEditorReady(true)
       },
     })
 
     return newProvider
-  }, [collaborationEnabled, collabToken, docId, ydoc])
+  }, [collabToken, docId, ydoc])
 
 
   // Handle provider events
@@ -947,7 +941,14 @@ function TipTapEditorInner({
 
   return (
     <div className="notion-like-editor-wrapper flex">
-      <div className={`flex-1 ${showComments ? 'mr-80' : ''} transition-all duration-200`}>
+      <div className={`flex-1 ${showComments ? 'mr-80' : ''} transition-all duration-200 relative`}>
+        {/* Loading overlay - fades out when editor is ready */}
+        {!isEditorReady && provider && (
+          <div className="absolute inset-0 z-30 bg-background/80 flex items-center justify-center animate-pulse transition-opacity duration-300">
+            <div className="text-sm text-muted-foreground">Syncing...</div>
+          </div>
+        )}
+
         <EditorContext.Provider value={{ editor }}>
           {/* Fixed Toolbar */}
           <Toolbar ref={toolbarRef} className="mb-4 sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -961,14 +962,14 @@ function TipTapEditorInner({
               docTitle={docTitle}
               versionString={versionString}
             />
-            
+
             {/* Collaborators */}
             <CollaboratorsDisplay collaborators={collaborators} />
-            
+
             {/* Connection status */}
             {provider && (
-              <div className={`ml-2 w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-yellow-500'}`} 
-                title={isConnected ? 'Connected' : 'Connecting...'} 
+              <div className={`ml-2 w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-yellow-500'}`}
+                title={isConnected ? 'Connected' : 'Connecting...'}
               />
             )}
           </Toolbar>
