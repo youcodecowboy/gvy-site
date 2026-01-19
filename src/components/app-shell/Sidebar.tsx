@@ -109,7 +109,7 @@ export function Sidebar() {
     }
   }, [updateTitle, toast])
 
-  const handleNewDoc = useCallback(async () => {
+  const handleNewDoc = useCallback(() => {
     const isOrg = currentSection === 'organization' && organization?.id
 
     // Generate temporary ID for optimistic update
@@ -133,41 +133,50 @@ export function Sidebar() {
 
     // Navigate immediately for instant perceived performance
     router.push(`/app/doc/${tempId}`)
-    toast({ title: 'Creating document...', variant: 'default', duration: 1500 })
 
-    try {
-      // Create document in background
-      const realId = await createNode({
-        type: 'doc',
-        parentId: currentFolderId ? (currentFolderId as Id<'nodes'>) : null,
-        title: 'Untitled',
-        orgId: isOrg ? organization.id : undefined,
+    // Fire-and-forget: create document in background without blocking
+    createNode({
+      type: 'doc',
+      parentId: currentFolderId ? (currentFolderId as Id<'nodes'>) : null,
+      title: 'Untitled',
+      orgId: isOrg ? organization.id : undefined,
+    })
+      .then((realId) => {
+        // Replace temp ID with real ID in URL (non-blocking)
+        router.replace(`/app/doc/${realId}`, { scroll: false })
       })
-
-      // Replace temp ID with real ID in URL
-      router.replace(`/app/doc/${realId}`)
-      toast({ title: 'Document created', variant: 'success', duration: 1500 })
-    } catch (error) {
-      // Rollback: navigate back on error
-      router.back()
-      toast({ title: 'Failed to create document', variant: 'error' })
-    }
+      .catch(() => {
+        // Rollback: navigate back on error
+        router.back()
+        toast({ title: 'Failed to create document', variant: 'error' })
+      })
   }, [createNode, toast, currentSection, currentFolderId, organization?.id, user?.id, router, setDoc])
 
-  const handleNewFolder = useCallback(async () => {
-    try {
-      const isOrg = currentSection === 'organization' && organization?.id
-      const newId = await createNode({
-        type: 'folder',
-        parentId: currentFolderId ? (currentFolderId as Id<'nodes'>) : null,
-        title: 'New Folder',
-        orgId: isOrg ? organization.id : undefined,
+  const handleNewFolder = useCallback(() => {
+    const isOrg = currentSection === 'organization' && organization?.id
+
+    // Generate temporary ID for optimistic update
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+    // Navigate immediately for instant perceived performance
+    router.push(`/app/folder/${tempId}`)
+
+    // Fire-and-forget: create folder in background without blocking
+    createNode({
+      type: 'folder',
+      parentId: currentFolderId ? (currentFolderId as Id<'nodes'>) : null,
+      title: 'New Folder',
+      orgId: isOrg ? organization.id : undefined,
+    })
+      .then((realId) => {
+        // Replace temp ID with real ID in URL (non-blocking)
+        router.replace(`/app/folder/${realId}`, { scroll: false })
       })
-      toast({ title: 'Folder created', variant: 'success' })
-      router.push(`/app/folder/${newId}`)
-    } catch (error) {
-      toast({ title: 'Failed to create folder', variant: 'error' })
-    }
+      .catch(() => {
+        // Rollback: navigate back on error
+        router.back()
+        toast({ title: 'Failed to create folder', variant: 'error' })
+      })
   }, [createNode, toast, currentSection, currentFolderId, organization?.id, router])
 
   const handleDelete = useCallback(async (id: string) => {

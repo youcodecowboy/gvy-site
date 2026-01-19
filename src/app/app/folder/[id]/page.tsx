@@ -224,14 +224,17 @@ export default function FolderPage() {
   const params = useParams()
   const router = useRouter()
   const id = params.id as string
-  
-  // Queries
-  const folder = useQuery(api.nodes.get, { id: id as Id<'nodes'> })
-  const children = useQuery(api.nodes.getChildren, { parentId: id as Id<'nodes'> })
-  const stats = useQuery(api.nodes.getFolderStats, { id: id as Id<'nodes'> })
-  const descendants = useQuery(api.nodes.getDescendants, { id: id as Id<'nodes'>, maxDepth: 3 })
-  const contributors = useQuery(api.nodes.getFolderContributors, { id: id as Id<'nodes'> })
-  const folderMentions = useQuery(api.mentions.getFolderUnreadMentions, { folderId: id as Id<'nodes'> })
+
+  // Detect optimistic temp IDs (created during fire-and-forget creation)
+  const isTempId = id.startsWith('temp_')
+
+  // Queries - skip for temp IDs to avoid invalid ID errors
+  const folder = useQuery(api.nodes.get, isTempId ? 'skip' : { id: id as Id<'nodes'> })
+  const children = useQuery(api.nodes.getChildren, isTempId ? 'skip' : { parentId: id as Id<'nodes'> })
+  const stats = useQuery(api.nodes.getFolderStats, isTempId ? 'skip' : { id: id as Id<'nodes'> })
+  const descendants = useQuery(api.nodes.getDescendants, isTempId ? 'skip' : { id: id as Id<'nodes'>, maxDepth: 3 })
+  const contributors = useQuery(api.nodes.getFolderContributors, isTempId ? 'skip' : { id: id as Id<'nodes'> })
+  const folderMentions = useQuery(api.mentions.getFolderUnreadMentions, isTempId ? 'skip' : { folderId: id as Id<'nodes'> })
   
   // Mutations
   const createNode = useMutation(api.nodes.create)
@@ -350,13 +353,22 @@ export default function FolderPage() {
     }
   }, [id, updateDescription, toast])
 
-  // Loading state
-  if (folder === undefined || children === undefined) {
+  // Loading state (or optimistic state for temp IDs)
+  if (folder === undefined || children === undefined || isTempId) {
     return (
       <div className="p-6 max-w-6xl mx-auto">
         <div className="mb-6">
-          <Skeleton className="h-10 w-[300px] mb-2" />
-          <Skeleton className="h-4 w-[150px]" />
+          {isTempId ? (
+            <>
+              <h1 className="text-3xl font-bold mb-2">New Folder</h1>
+              <p className="text-muted-foreground text-sm">Creating folder...</p>
+            </>
+          ) : (
+            <>
+              <Skeleton className="h-10 w-[300px] mb-2" />
+              <Skeleton className="h-4 w-[150px]" />
+            </>
+          )}
         </div>
         <div className="grid grid-cols-4 gap-4 mb-6">
           <Skeleton className="h-20" />
@@ -370,7 +382,7 @@ export default function FolderPage() {
     )
   }
 
-  // Not found state
+  // Not found state - skip for temp IDs as we show optimistic state above
   if (!folder || folder.type !== 'folder') {
     return (
       <div className="flex items-center justify-center h-full">

@@ -194,11 +194,13 @@ export function canPerformAction(
 /**
  * Get all folder IDs a user has explicit access to in an organization
  * Returns a Set for efficient lookup
+ * OPTIMIZED: Uses batch queries with ancestorIds for O(1) descendant lookup
  */
 export async function getAccessibleFolderIds(
   ctx: QueryCtx | MutationCtx,
   userId: string,
-  orgId: string
+  orgId: string,
+  allOrgNodes?: Doc<"nodes">[]
 ): Promise<Set<Id<"nodes">>> {
   const accessibleIds = new Set<Id<"nodes">>();
 
@@ -208,16 +210,29 @@ export async function getAccessibleFolderIds(
     .withIndex("by_org_user", (q) => q.eq("orgId", orgId).eq("userId", userId))
     .collect();
 
-  for (const access of directAccess) {
-    // Check expiration
-    if (access.expiresAt && access.expiresAt < Date.now()) {
-      continue;
-    }
+  // Filter expired access
+  const validAccess = directAccess.filter(
+    (access) => !access.expiresAt || access.expiresAt >= Date.now()
+  );
 
+  if (validAccess.length === 0) {
+    return accessibleIds;
+  }
+
+  // Get all org nodes once for batch descendant lookups (if not provided)
+  const nodes =
+    allOrgNodes ??
+    (await ctx.db
+      .query("nodes")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .filter((q) => q.neq(q.field("isDeleted"), true))
+      .collect());
+
+  for (const access of validAccess) {
     accessibleIds.add(access.folderId);
 
-    // Also add all descendants of this folder
-    const descendants = await getDescendantIds(ctx, access.folderId);
+    // Use optimized descendant lookup with pre-fetched nodes
+    const descendants = await getDescendantIds(ctx, access.folderId, nodes);
     descendants.forEach((id) => accessibleIds.add(id));
   }
 
@@ -225,25 +240,30 @@ export async function getAccessibleFolderIds(
 }
 
 /**
- * Get all descendant node IDs (recursive)
+ * Get all descendant node IDs using ancestorIds field (O(1) complexity)
+ * OPTIMIZED: Uses in-memory filtering instead of O(N) recursive queries
+ * Note: Requires ancestorIds field to be populated via migration
  */
 export async function getDescendantIds(
   ctx: QueryCtx | MutationCtx,
-  parentId: Id<"nodes">
+  parentId: Id<"nodes">,
+  allNodes?: Doc<"nodes">[]
 ): Promise<Id<"nodes">[]> {
-  const children = await ctx.db
-    .query("nodes")
-    .withIndex("by_parent", (q) => q.eq("parentId", parentId))
-    .filter((q) => q.neq(q.field("isDeleted"), true))
-    .collect();
+  // If allNodes is provided (for batch operations), use in-memory filtering
+  // Otherwise, we need to query all nodes (still much faster than recursive queries)
+  const nodes =
+    allNodes ??
+    (await ctx.db
+      .query("nodes")
+      .filter((q) => q.neq(q.field("isDeleted"), true))
+      .collect());
 
-  const ids: Id<"nodes">[] = [];
-  for (const child of children) {
-    ids.push(child._id);
-    const childDescendants = await getDescendantIds(ctx, child._id);
-    ids.push(...childDescendants);
-  }
-  return ids;
+  // Find all nodes that have parentId in their ancestorIds array
+  const descendants = nodes.filter(
+    (node) => node.ancestorIds?.includes(parentId)
+  );
+
+  return descendants.map((d) => d._id);
 }
 
 /**

@@ -17,6 +17,7 @@ import type * as flags from "../flags.js";
 import type * as folderAccess from "../folderAccess.js";
 import type * as invitations from "../invitations.js";
 import type * as mentions from "../mentions.js";
+import type * as migrations_migrateAncestorPaths from "../migrations/migrateAncestorPaths.js";
 import type * as migrations_migrateFlags from "../migrations/migrateFlags.js";
 import type * as nodes from "../nodes.js";
 import type * as orgInvites from "../orgInvites.js";
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   folderAccess: typeof folderAccess;
   invitations: typeof invitations;
   mentions: typeof mentions;
+  "migrations/migrateAncestorPaths": typeof migrations_migrateAncestorPaths;
   "migrations/migrateFlags": typeof migrations_migrateFlags;
   nodes: typeof nodes;
   orgInvites: typeof orgInvites;

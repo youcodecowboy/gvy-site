@@ -33,10 +33,10 @@ interface DocCacheContextValue {
 
 const DocCacheContext = createContext<DocCacheContextValue | null>(null)
 
-// Cache docs for 10 minutes (extended for prefetched docs)
-const CACHE_TTL = 10 * 60 * 1000
-// Max cache size increased from 20 to 30 for better prefetch performance
-const MAX_CACHE_SIZE = 30
+// Cache docs for 30 minutes for faster document switching
+const CACHE_TTL = 30 * 60 * 1000
+// Max cache size for better prefetch performance
+const MAX_CACHE_SIZE = 50
 
 export function DocCacheProvider({ children }: { children: ReactNode }) {
   const [cache, setCache] = useState<Map<string, CachedDoc>>(new Map())
@@ -64,7 +64,7 @@ export function DocCacheProvider({ children }: { children: ReactNode }) {
       const next = new Map(prev)
       next.set(doc._id, { ...doc, cachedAt: Date.now() })
       
-      // Keep cache size reasonable (max 30 docs)
+      // Keep cache size reasonable (max 50 docs)
       if (next.size > MAX_CACHE_SIZE) {
         // Remove oldest entry (LRU eviction)
         const entries = Array.from(next.entries())

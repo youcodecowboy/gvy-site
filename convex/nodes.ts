@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
 import { getAccessibleFolderIds, checkNodeAccess, canPerformAction } from "./permissions";
 
 // Get all nodes for the current user (personal) or organization
@@ -158,6 +159,16 @@ export const create = mutation({
 
     const maxOrder = lastSibling?.order ?? -1;
 
+    // Compute ancestorIds for efficient descendant queries
+    let ancestorIds: Id<"nodes">[] = [];
+    if (args.parentId) {
+      const parent = await ctx.db.get(args.parentId);
+      if (parent) {
+        // Parent's ancestors + parent itself
+        ancestorIds = [...(parent.ancestorIds || []), args.parentId];
+      }
+    }
+
     const nodeId = await ctx.db.insert("nodes", {
       type: args.type,
       parentId: args.parentId,
@@ -167,11 +178,12 @@ export const create = mutation({
       status: args.type === "doc" ? "draft" : undefined,
       ownerId: args.orgId ? undefined : identity.subject,
       orgId: args.orgId,
+      ancestorIds,
     });
 
-    // Log activity
+    // Log activity in background (non-blocking for faster response)
     const userName = identity.name || (identity as any).nickname || "Anonymous";
-    await ctx.runMutation(internal.activity.recordActivity, {
+    ctx.scheduler.runAfter(0, internal.activity.recordActivity, {
       type: args.type === "doc" ? "doc_created" : "folder_created",
       nodeId,
       nodeTitle: args.title,
@@ -230,6 +242,16 @@ export const createWithContent = mutation({
     const now = Date.now();
     const userName = identity.name || identity.nickname || "Unknown";
 
+    // Compute ancestorIds for efficient descendant queries
+    let ancestorIds: Id<"nodes">[] = [];
+    if (args.parentId) {
+      const parent = await ctx.db.get(args.parentId);
+      if (parent) {
+        // Parent's ancestors + parent itself
+        ancestorIds = [...(parent.ancestorIds || []), args.parentId];
+      }
+    }
+
     const nodeId = await ctx.db.insert("nodes", {
       type: "doc",
       parentId: args.parentId,
@@ -247,10 +269,11 @@ export const createWithContent = mutation({
       currentMinorVersion: 0,
       currentVersionString: "v1.0",
       lastVersionSnapshotAt: now,
+      ancestorIds,
     });
 
-    // Log activity
-    await ctx.runMutation(internal.activity.recordActivity, {
+    // Log activity in background (non-blocking for faster response)
+    ctx.scheduler.runAfter(0, internal.activity.recordActivity, {
       type: "doc_created",
       nodeId,
       nodeTitle: args.title,
@@ -556,9 +579,9 @@ export const remove = mutation({
       });
     }
 
-    // Log activity
+    // Log activity in background (non-blocking for faster response)
     const userName = identity.name || (identity as any).nickname || "Anonymous";
-    await ctx.runMutation(internal.activity.recordActivity, {
+    ctx.scheduler.runAfter(0, internal.activity.recordActivity, {
       type: node.type === "doc" ? "doc_deleted" : "folder_deleted",
       nodeId: args.id,
       nodeTitle: node.title,
@@ -654,10 +677,50 @@ export const move = mutation({
 
     const maxOrder = siblings.reduce((max, n) => Math.max(max, n.order), -1);
 
+    // Compute new ancestorIds for the moved node
+    let newAncestorIds: Id<"nodes">[] = [];
+    if (args.newParentId) {
+      const newParent = await ctx.db.get(args.newParentId);
+      if (newParent) {
+        newAncestorIds = [...(newParent.ancestorIds || []), args.newParentId];
+      }
+    }
+
+    // Update the moved node
     await ctx.db.patch(args.id, {
       parentId: args.newParentId,
       order: maxOrder + 1,
+      ancestorIds: newAncestorIds,
     });
+
+    // Update all descendants of the moved node
+    // Get all descendants by finding nodes that have this node in their ancestorIds
+    const oldAncestorIds = node.ancestorIds || [];
+    const allNodes = await ctx.db
+      .query("nodes")
+      .filter((q) => q.neq(q.field("isDeleted"), true))
+      .collect();
+
+    // Find descendants: nodes where args.id appears in their ancestorIds
+    const descendants = allNodes.filter((n) =>
+      n.ancestorIds?.includes(args.id)
+    );
+
+    for (const descendant of descendants) {
+      const descendantOldAncestors = descendant.ancestorIds || [];
+      // Find where the moved node appears in descendant's path
+      const moveNodeIndex = descendantOldAncestors.indexOf(args.id);
+
+      if (moveNodeIndex !== -1) {
+        // Keep the part of the path from the moved node onwards (including moved node)
+        const suffixPath = descendantOldAncestors.slice(moveNodeIndex);
+        // New path = new ancestors of moved node + suffix
+        const newDescendantAncestors = [...newAncestorIds, ...suffixPath];
+        await ctx.db.patch(descendant._id, {
+          ancestorIds: newDescendantAncestors,
+        });
+      }
+    }
   },
 });
 
@@ -728,11 +791,56 @@ export const reorder = mutation({
       orderCounter++;
     }
 
-    // Update the moved node
-    await ctx.db.patch(args.id, {
-      parentId: args.newParentId,
-      order: args.newOrder,
-    });
+    // Check if parent is changing
+    const isParentChanging = node.parentId !== args.newParentId;
+
+    if (isParentChanging) {
+      // Compute new ancestorIds for the moved node
+      let newAncestorIds: Id<"nodes">[] = [];
+      if (args.newParentId) {
+        const newParent = await ctx.db.get(args.newParentId);
+        if (newParent) {
+          newAncestorIds = [...(newParent.ancestorIds || []), args.newParentId];
+        }
+      }
+
+      // Update the moved node with new parent and ancestors
+      await ctx.db.patch(args.id, {
+        parentId: args.newParentId,
+        order: args.newOrder,
+        ancestorIds: newAncestorIds,
+      });
+
+      // Update all descendants of the moved node
+      const allNodes = await ctx.db
+        .query("nodes")
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .collect();
+
+      // Find descendants: nodes where args.id appears in their ancestorIds
+      const descendants = allNodes.filter((n) =>
+        n.ancestorIds?.includes(args.id)
+      );
+
+      for (const descendant of descendants) {
+        const descendantOldAncestors = descendant.ancestorIds || [];
+        const moveNodeIndex = descendantOldAncestors.indexOf(args.id);
+
+        if (moveNodeIndex !== -1) {
+          const suffixPath = descendantOldAncestors.slice(moveNodeIndex);
+          const newDescendantAncestors = [...newAncestorIds, ...suffixPath];
+          await ctx.db.patch(descendant._id, {
+            ancestorIds: newDescendantAncestors,
+          });
+        }
+      }
+    } else {
+      // Just update order, no ancestor changes needed
+      await ctx.db.patch(args.id, {
+        parentId: args.newParentId,
+        order: args.newOrder,
+      });
+    }
   },
 });
 
@@ -1098,7 +1206,7 @@ export const listWithPermissions = query({
         .collect();
     }
 
-    // Get all org nodes
+    // Get all org nodes (single query)
     const allOrgNodes = await ctx.db
       .query("nodes")
       .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
@@ -1106,39 +1214,75 @@ export const listWithPermissions = query({
       .collect();
 
     // Get folders the user has explicit access to
+    // Pass allOrgNodes for efficient descendant lookup using ancestorIds
     const accessibleFolderIds = await getAccessibleFolderIds(
       ctx,
       identity.subject,
-      args.orgId
+      args.orgId,
+      allOrgNodes
+    );
+
+    // Build a set of non-restricted root folder IDs for efficient lookup
+    const nonRestrictedRootFolderIds = new Set(
+      allOrgNodes
+        .filter(
+          (n) =>
+            n.type === "folder" && n.parentId === null && !n.isRestricted
+        )
+        .map((n) => n._id)
     );
 
     // Filter nodes to only those accessible to the user
+    // Uses ancestorIds for O(1) ancestry checks
     const accessibleNodes = allOrgNodes.filter((node) => {
       // Root-level non-restricted folders are visible to all org members
-      if (node.type === "folder" && node.parentId === null && !node.isRestricted) {
+      if (
+        node.type === "folder" &&
+        node.parentId === null &&
+        !node.isRestricted
+      ) {
         return true;
       }
 
       // Root-level restricted folders need explicit access
-      if (node.type === "folder" && node.parentId === null && node.isRestricted) {
+      if (
+        node.type === "folder" &&
+        node.parentId === null &&
+        node.isRestricted
+      ) {
         return accessibleFolderIds.has(node._id);
-      }
-
-      // Non-root items: check if they're in an accessible folder tree
-      if (node.parentId) {
-        // If the parent is in accessible folders, include this node
-        if (accessibleFolderIds.has(node.parentId)) {
-          return true;
-        }
-
-        // Otherwise, need to walk up to find if any ancestor is non-restricted or accessible
-        // For efficiency, we'll do a simpler check here
-        // This will be refined during tree building on the frontend
-        return true; // Let the tree builder handle nested visibility
       }
 
       // Root-level docs are visible to all org members
       if (node.type === "doc" && node.parentId === null) {
+        return true;
+      }
+
+      // Non-root items: check using ancestorIds for efficient lookup
+      if (node.ancestorIds && node.ancestorIds.length > 0) {
+        // Check if user has explicit access to any ancestor
+        if (node.ancestorIds.some((ancestorId) => accessibleFolderIds.has(ancestorId))) {
+          return true;
+        }
+
+        // Check if the root ancestor (first in path) is non-restricted
+        const rootAncestorId = node.ancestorIds[0];
+        if (nonRestrictedRootFolderIds.has(rootAncestorId)) {
+          return true;
+        }
+
+        // If we reach here, the node is in a restricted tree without access
+        return false;
+      }
+
+      // Fallback for nodes without ancestorIds (legacy data before migration)
+      // Return true and let tree builder handle visibility
+      if (node.parentId) {
+        // Check direct parent access
+        if (accessibleFolderIds.has(node.parentId)) {
+          return true;
+        }
+        // Legacy fallback - return true for now
         return true;
       }
 
@@ -1214,8 +1358,8 @@ export const toggleRestriction = mutation({
 
     const userName = identity.name || identity.nickname || "Unknown";
 
-    // Log activity
-    await ctx.runMutation(internal.activity.recordActivity, {
+    // Log activity in background (non-blocking for faster response)
+    ctx.scheduler.runAfter(0, internal.activity.recordActivity, {
       type: "folder_updated",
       nodeId: args.id,
       nodeTitle: node.title,

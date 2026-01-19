@@ -66,6 +66,11 @@ export default defineSchema({
     // Folder permissions - when true, folder uses granular access control
     // instead of org-wide visibility
     isRestricted: v.optional(v.boolean()),
+
+    // Ancestor folder IDs from root to direct parent
+    // Used for O(1) descendant queries instead of recursive lookups
+    // e.g., for doc at /folderA/folderB/doc: ["folderA_id", "folderB_id"]
+    ancestorIds: v.optional(v.array(v.id("nodes"))),
   })
     .index("by_parent", ["parentId"])
     .index("by_owner", ["ownerId"])

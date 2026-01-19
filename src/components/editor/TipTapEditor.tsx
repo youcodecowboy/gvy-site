@@ -97,8 +97,6 @@ import { useIsBreakpoint } from '@/hooks/use-is-breakpoint'
 // --- Lib ---
 import { MAX_FILE_SIZE } from '@/lib/tiptap-utils'
 import {
-  fetchAiToken,
-  fetchCollabToken,
   TIPTAP_AI_APP_ID,
   TIPTAP_COLLAB_APP_ID,
   TIPTAP_COLLAB_DOC_PREFIX,
@@ -1089,47 +1087,16 @@ function TipTapEditorInner({
   )
 }
 
-// Main component that fetches tokens and wraps with providers
+// Main component that wraps with providers
+// IMPORTANT: Tokens must be provided via props from TokenCacheProvider
+// Do NOT add fallback token fetching here - it causes 3-5 second delays due to Clerk auth()
 export function TipTapEditor(props: TipTapEditorProps) {
-  const [aiToken, setAiToken] = useState<string | null>(props.aiToken ?? null)
-  const [collabToken, setCollabToken] = useState<string | null>(props.collabToken ?? null)
-  const [isLoading, setIsLoading] = useState(props.aiToken === undefined || props.collabToken === undefined)
+  // Use tokens directly from props - they come from TokenCacheProvider (fetched once on app load)
+  const aiToken = props.aiToken ?? null
+  const collabToken = props.collabToken ?? null
 
-  // Update tokens when props change
-  useEffect(() => {
-    if (props.aiToken !== undefined) {
-      setAiToken(props.aiToken)
-    }
-    if (props.collabToken !== undefined) {
-      setCollabToken(props.collabToken)
-    }
-  }, [props.aiToken, props.collabToken])
-
-  // Only fetch tokens if not provided via props
-  useEffect(() => {
-    if (props.aiToken !== undefined && props.collabToken !== undefined) {
-      setIsLoading(false)
-      return
-    }
-
-    const loadTokens = async () => {
-      try {
-        const [ai, collab] = await Promise.all([
-          fetchAiToken(),
-          fetchCollabToken(),
-        ])
-        if (props.aiToken === undefined) setAiToken(ai)
-        if (props.collabToken === undefined) setCollabToken(collab)
-      } catch (error) {
-        console.error('Failed to fetch tokens:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    loadTokens()
-  }, [props.aiToken, props.collabToken])
-
-  if (isLoading) {
+  // Only show loading if tokens haven't been fetched yet (rare - only on first app load)
+  if (props.aiToken === undefined && props.collabToken === undefined) {
     return (
       <div className="min-h-[300px] animate-pulse">
         <div className="h-10 bg-muted rounded mb-4" />

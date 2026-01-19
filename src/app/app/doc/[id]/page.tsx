@@ -17,7 +17,15 @@ export default function DocPage() {
   const params = useParams()
   const searchParams = useSearchParams()
   const id = params.id as string
-  const doc = useQuery(api.nodes.get, { id: id as Id<'nodes'> })
+
+  // Detect optimistic temp IDs (created during fire-and-forget creation)
+  const isTempId = id.startsWith('temp_')
+
+  // Skip Convex query for temp IDs - use cached optimistic doc instead
+  const doc = useQuery(
+    api.nodes.get,
+    isTempId ? 'skip' : { id: id as Id<'nodes'> }
+  )
   const [isSaving, setIsSaving] = useState(false)
   const [showThreads, setShowThreads] = useState(false)
   const { toast, loading } = useToast()
@@ -29,8 +37,11 @@ export default function DocPage() {
   // Use globally cached tokens (fetched once on app load, refreshed every 50min)
   const { aiToken, collabToken } = useTokenCache()
 
-  // Thread count for the header button
-  const threadCount = useQuery(api.threads.getThreadCount, { docId: id as Id<'nodes'> })
+  // Thread count for the header button (skip for temp IDs)
+  const threadCount = useQuery(
+    api.threads.getThreadCount,
+    isTempId ? 'skip' : { docId: id as Id<'nodes'> }
+  )
 
   // Flag query params
   const flagId = searchParams.get('flag')
@@ -166,8 +177,8 @@ export default function DocPage() {
     )
   }
 
-  // Not found state
-  if (doc === null || (doc && doc.type !== 'doc')) {
+  // Not found state - but skip for temp IDs with cached optimistic doc
+  if (!isTempId && (doc === null || (doc && doc.type !== 'doc'))) {
     return (
       <div className="flex items-center justify-center h-full">
         <EmptyState
