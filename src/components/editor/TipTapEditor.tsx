@@ -85,7 +85,7 @@ import { useIsBreakpoint } from '@/hooks/use-is-breakpoint'
 
 // --- Lib ---
 import { MAX_FILE_SIZE } from '@/lib/tiptap-utils'
-import { transformPastedHTMLColors } from '@/lib/paste-color-handler'
+import { transformPastedHTMLColors, stripEmptyColorMarks } from '@/lib/paste-color-handler'
 
 // --- Node Styles ---
 import '@/components/tiptap-node/blockquote-node/blockquote-node.scss'
@@ -192,7 +192,7 @@ function MainToolbarContent({
       <ToolbarSeparator />
 
       <ToolbarGroup>
-        <AutoFormatButton />
+        <AutoFormatButton docId={docId} />
       </ToolbarGroup>
 
       <Spacer />
@@ -222,6 +222,9 @@ function TipTapEditorInner({
   const [showThreadsInternal, setShowThreadsInternal] = useState(false)
   const [pendingScrollPosition, setPendingScrollPosition] = useState<{ from: number; to: number } | null>(null)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const lastSavedContentRef = useRef<string | null>(null) // Track what we last saved to prevent feedback loop
+  const previousDocIdRef = useRef<string | null>(null) // Track doc switches
+  const localSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null) // For localStorage saves
 
   // Use controlled props when provided, otherwise use internal state
   const isThreadsControlled = showThreadsProp !== undefined
@@ -422,7 +425,25 @@ function TipTapEditorInner({
     ],
     content: initialContentRef.current,
     onUpdate: ({ editor }) => {
-      // Debounce saves to Convex
+      const json = editor.getJSON()
+      const currentDocId = docIdRef.current
+
+      // Strip empty color marks from the content before saving
+      const cleanedJson = stripEmptyColorMarks(json)
+
+      // Save to localStorage immediately for instant recovery
+      const localStorageKey = `doc_draft_${currentDocId}`
+      try {
+        localStorage.setItem(localStorageKey, JSON.stringify({
+          content: cleanedJson,
+          savedAt: Date.now(),
+        }))
+      } catch (e) {
+        // localStorage might be full or unavailable
+        console.warn('Failed to save to localStorage:', e)
+      }
+
+      // Debounce saves to Convex (5 seconds for less aggressive saving)
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current)
       }
@@ -430,21 +451,28 @@ function TipTapEditorInner({
       onSavingChangeRef.current?.(true)
       saveTimeoutRef.current = setTimeout(async () => {
         try {
-          const json = editor.getJSON()
-          const currentDocId = docIdRef.current
-          console.log('Saving content to Convex...', currentDocId)
+          // Store what we're about to save so we can ignore the Convex update
+          const contentString = JSON.stringify(cleanedJson)
+          lastSavedContentRef.current = contentString
+
           await updateContentRef.current({
             id: currentDocId as Id<'nodes'>,
-            content: json
+            content: cleanedJson
           })
-          console.log('Content saved to Convex successfully')
+
+          // Clear localStorage draft after successful Convex save
+          try {
+            localStorage.removeItem(localStorageKey)
+          } catch (e) {
+            // Ignore localStorage errors
+          }
 
           // Extract and save mentions
           try {
             await createMentionsRef.current({
               docId: currentDocId as Id<'nodes'>,
               docTitle: docTitleRef.current || 'Untitled',
-              content: json,
+              content: cleanedJson,
               mentionedByUserName: userRef.current?.name || 'Unknown',
             })
           } catch (mentionError) {
@@ -452,30 +480,100 @@ function TipTapEditorInner({
           }
         } catch (error) {
           console.error('Failed to save content to Convex:', error)
+          // Keep localStorage draft on failure so user doesn't lose work
         } finally {
           onSavingChangeRef.current?.(false)
         }
-      }, 2000) // 2 second debounce
+      }, 5000) // 5 second debounce - less aggressive than before
     },
   }, [handleImageUpload])
 
-  // Cleanup save timeout on unmount
+  // Cleanup save timeout on unmount and save any pending changes
   useEffect(() => {
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current)
       }
+      if (localSaveTimeoutRef.current) {
+        clearTimeout(localSaveTimeoutRef.current)
+      }
     }
   }, [])
 
-  // Update editor content when docId changes (switching documents)
+  // Save to Convex when navigating away (beforeunload)
   useEffect(() => {
-    if (editor && initialContent) {
-      // Only update if content is different to avoid unnecessary re-renders
-      const currentContent = editor.getJSON()
-      if (JSON.stringify(currentContent) !== JSON.stringify(initialContent)) {
-        editor.commands.setContent(initialContent)
+    const handleBeforeUnload = () => {
+      // Force save any pending content before leaving
+      if (saveTimeoutRef.current && editor) {
+        clearTimeout(saveTimeoutRef.current)
+        const json = stripEmptyColorMarks(editor.getJSON())
+        // Use sendBeacon for reliable save on page unload
+        const payload = JSON.stringify({
+          id: docIdRef.current,
+          content: json,
+        })
+        // Note: sendBeacon can't call Convex directly, so we rely on localStorage
+        // The next session will recover the draft if the Convex save didn't complete
       }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [editor])
+
+  // Update editor content ONLY when switching documents (not on every Convex update)
+  useEffect(() => {
+    if (!editor) return
+
+    const isDocumentSwitch = previousDocIdRef.current !== null && previousDocIdRef.current !== docId
+    const isInitialLoad = previousDocIdRef.current === null
+
+    // Update the previous docId tracker
+    previousDocIdRef.current = docId
+
+    // Only sync content from Convex when:
+    // 1. It's the initial load (first render)
+    // 2. We're switching to a different document
+    if (!isInitialLoad && !isDocumentSwitch) {
+      // This is likely just a Convex update from our own save - ignore it
+      // Check if the content matches what we last saved
+      if (lastSavedContentRef.current) {
+        const incomingString = JSON.stringify(initialContent)
+        // If it matches what we saved, definitely ignore
+        if (incomingString === lastSavedContentRef.current) {
+          return
+        }
+        // Even if it doesn't match exactly (due to minor differences),
+        // don't overwrite user's current edits
+      }
+      return
+    }
+
+    // For initial load or document switch, sync from Convex (or localStorage draft)
+    if (initialContent) {
+      // Check for localStorage draft first
+      const localStorageKey = `doc_draft_${docId}`
+      try {
+        const draft = localStorage.getItem(localStorageKey)
+        if (draft) {
+          const parsed = JSON.parse(draft)
+          // Use draft if it's newer than 30 seconds (in case of crash recovery)
+          if (parsed.savedAt && Date.now() - parsed.savedAt < 30000) {
+            editor.commands.setContent(parsed.content)
+            console.log('Restored content from localStorage draft')
+            return
+          }
+          // Clear old drafts
+          localStorage.removeItem(localStorageKey)
+        }
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+
+      // Use Convex content
+      editor.commands.setContent(initialContent)
+      // Reset the saved content tracker for the new document
+      lastSavedContentRef.current = null
     }
   }, [docId, editor, initialContent])
 

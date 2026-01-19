@@ -6,6 +6,7 @@ import { Id } from "./_generated/dataModel";
 // OpenAI API configuration
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 const DEFAULT_MODEL = "gpt-5-mini"; // GPT-5 Mini - fast and capable
+const FAST_MODEL = "gpt-4o-mini"; // GPT-4o Mini - very fast, good for formatting
 
 interface Message {
   role: "system" | "user" | "assistant";
@@ -43,6 +44,10 @@ async function callOpenAI(
 
   const { model = DEFAULT_MODEL, maxTokens = 4096 } = options;
 
+  // Use max_tokens for GPT-4o models, max_completion_tokens for GPT-5
+  const isGpt4Model = model.startsWith("gpt-4");
+  const tokenParam = isGpt4Model ? "max_tokens" : "max_completion_tokens";
+
   const response = await fetch(OPENAI_API_URL, {
     method: "POST",
     headers: {
@@ -52,7 +57,7 @@ async function callOpenAI(
     body: JSON.stringify({
       model,
       messages,
-      max_completion_tokens: maxTokens,
+      [tokenParam]: maxTokens,
     }),
   });
 
@@ -438,6 +443,73 @@ export const writeToDocument = action({
     } catch (error) {
       console.error("Error writing to document:", error);
       return { success: false, error: "Failed to write to document" };
+    }
+  },
+});
+
+/**
+ * Auto-format content - converts plain or messy text into well-structured TipTap JSON
+ * Uses GPT-4o-mini for fast response times
+ */
+export const autoFormat = action({
+  args: {
+    text: v.string(),
+    documentId: v.optional(v.id("nodes")),
+  },
+  handler: async (ctx, args): Promise<{ success: boolean; content?: any; error?: string }> => {
+    const { text } = args;
+
+    if (!text || text.trim().length === 0) {
+      return { success: false, error: "No content to format" };
+    }
+
+    // Concise prompt for faster processing
+    const systemPrompt = `Convert text to TipTap JSON. Use headings (level 1-3), paragraphs, bulletList/orderedList with listItem nodes. Preserve all content. Return ONLY valid JSON:
+{"type":"doc","content":[{"type":"heading","attrs":{"level":1},"content":[{"type":"text","text":"Title"}]},{"type":"paragraph","content":[{"type":"text","text":"Text"}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"Item"}]}]}]}]}`;
+
+    const messages: Message[] = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: text },
+    ];
+
+    try {
+      // Use GPT-4o-mini for fast formatting
+      const response = await callOpenAI(messages, {
+        model: FAST_MODEL,
+        maxTokens: 8192
+      });
+
+      // Parse the response as JSON
+      let jsonContent;
+      try {
+        let cleanedResponse = response.trim();
+        // Remove markdown code blocks if present
+        if (cleanedResponse.startsWith("```json")) {
+          cleanedResponse = cleanedResponse.slice(7);
+        } else if (cleanedResponse.startsWith("```")) {
+          cleanedResponse = cleanedResponse.slice(3);
+        }
+        if (cleanedResponse.endsWith("```")) {
+          cleanedResponse = cleanedResponse.slice(0, -3);
+        }
+        jsonContent = JSON.parse(cleanedResponse.trim());
+      } catch (parseError) {
+        console.error("Failed to parse AI response as JSON:", parseError);
+        // Fallback: simple paragraph structure
+        const paragraphs = text.split("\n\n").filter(p => p.trim());
+        jsonContent = {
+          type: "doc",
+          content: paragraphs.map(p => ({
+            type: "paragraph",
+            content: [{ type: "text", text: p.trim() }]
+          }))
+        };
+      }
+
+      return { success: true, content: jsonContent };
+    } catch (error) {
+      console.error("Auto-format error:", error);
+      return { success: false, error: "Failed to format content" };
     }
   },
 });

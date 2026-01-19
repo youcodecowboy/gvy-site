@@ -122,10 +122,85 @@ export function transformPastedHTMLColors(html: string): string {
     const element = el as HTMLElement
     const color = element.style.color
 
-    if (color && shouldStripColor(color)) {
+    // Strip empty colors OR dark colors that would be invisible in dark mode
+    if (color === "" || (color && shouldStripColor(color))) {
       element.style.removeProperty("color")
     }
   })
 
+  // Also handle legacy <font color="..."> tags from old HTML (like Google Docs)
+  const fontTags = doc.querySelectorAll("font[color]")
+  fontTags.forEach((el) => {
+    const fontEl = el as HTMLElement
+    const color = fontEl.getAttribute("color")
+    if (color && shouldStripColor(color)) {
+      fontEl.removeAttribute("color")
+    }
+  })
+
+  // Handle span with data-color or class-based colors (Google Docs style)
+  const spansWithColor = doc.querySelectorAll("span")
+  spansWithColor.forEach((span) => {
+    const style = span.getAttribute("style") || ""
+    // Match color declarations in various formats
+    const colorMatch = style.match(/color\s*:\s*([^;]+)/i)
+    if (colorMatch) {
+      const colorValue = colorMatch[1].trim()
+      if (colorValue === "" || shouldStripColor(colorValue)) {
+        // Remove just the color from the style, keep other properties
+        const newStyle = style.replace(/color\s*:\s*[^;]+;?/gi, "").trim()
+        if (newStyle) {
+          span.setAttribute("style", newStyle)
+        } else {
+          span.removeAttribute("style")
+        }
+      }
+    }
+  })
+
   return doc.body.innerHTML
+}
+
+/**
+ * Strip empty or dark color marks from TipTap JSON content.
+ * This handles cases where the textStyle mark is created with empty color.
+ */
+export function stripEmptyColorMarks(content: any): any {
+  if (!content) return content
+  if (typeof content !== "object") return content
+
+  // Handle arrays (like content arrays)
+  if (Array.isArray(content)) {
+    return content.map((item) => stripEmptyColorMarks(item))
+  }
+
+  // Clone to avoid mutation
+  const result = { ...content }
+
+  // Process marks if present
+  if (result.marks && Array.isArray(result.marks)) {
+    result.marks = result.marks.filter((mark: any) => {
+      // Remove textStyle marks with empty color
+      if (mark.type === "textStyle") {
+        const color = mark.attrs?.color
+        // Keep the mark only if it has a non-empty color that we shouldn't strip
+        if (!color || color === "" || shouldStripColor(color)) {
+          return false
+        }
+      }
+      return true
+    })
+
+    // Remove empty marks array
+    if (result.marks.length === 0) {
+      delete result.marks
+    }
+  }
+
+  // Recursively process content
+  if (result.content && Array.isArray(result.content)) {
+    result.content = result.content.map((item: any) => stripEmptyColorMarks(item))
+  }
+
+  return result
 }
