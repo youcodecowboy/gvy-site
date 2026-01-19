@@ -11,6 +11,7 @@ import { EmptyState, Button, Skeleton, useToast } from '@/components/ui'
 import { TipTapEditor, DocHeader } from '@/components/editor'
 import { useDocCache } from '@/contexts/doc-cache-context'
 import { TocProvider } from '@/components/tiptap-node/toc-node/context/toc-context'
+import { AIChatPanel, AskDiscoButton } from '@/components/ai'
 
 export default function DocPage() {
   const params = useParams()
@@ -27,6 +28,7 @@ export default function DocPage() {
   )
   const [isSaving, setIsSaving] = useState(false)
   const [showThreads, setShowThreads] = useState(false)
+  const [showAI, setShowAI] = useState(false)
   const { toast, loading } = useToast()
   const { getDoc, setDoc } = useDocCache()
   const hasShownLoadingRef = useRef(false)
@@ -140,6 +142,11 @@ export default function DocPage() {
     setShowThreads((prev) => !prev)
   }, [])
 
+  // Toggle AI panel
+  const handleToggleAI = useCallback(() => {
+    setShowAI((prev) => !prev)
+  }, [])
+
   // Loading state - only show if no cached version
   if (displayDoc === undefined) {
     return (
@@ -221,37 +228,56 @@ export default function DocPage() {
 
   return (
     <TocProvider>
-      <div className="min-h-full">
-        <div className="w-full max-w-5xl xl:max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <DocHeader
-            doc={{
-              _id: displayDoc._id as string,
-              title: displayDoc.title,
-              parentId: displayDoc.parentId as string | null ?? null,
-              icon: displayDoc.icon ?? null,
-              tagIds: displayDoc.tagIds,
-              status: displayDoc.status as 'draft' | 'in_review' | 'final' | undefined,
-              ownerId: displayDoc.ownerId ?? '',
-              orgId: displayDoc.orgId ?? undefined,
-              currentVersionString: displayDoc.currentVersionString ?? 'v1.0',
-            }}
-            isSaving={isSaving}
-            showThreads={showThreads}
-            onToggleThreads={handleToggleThreads}
-            threadCount={threadCount?.open ?? 0}
-          />
-          <TipTapEditor
-            docId={displayDoc._id as string}
-            docTitle={displayDoc.title}
-            content={displayDoc.content ?? ''}
-            versionString={displayDoc.currentVersionString ?? 'v1.0'}
-            onSavingChange={setIsSaving}
-            scrollToPosition={flagFrom && flagTo ? { from: parseInt(flagFrom), to: parseInt(flagTo) } : undefined}
-            showThreads={showThreads}
-            onToggleThreads={handleToggleThreads}
-            threadCount={threadCount?.open ?? 0}
-          />
+      <div className="min-h-full flex">
+        {/* Main document area */}
+        <div className={`flex-1 min-w-0 transition-all duration-200 ${showAI ? 'mr-0' : ''}`}>
+          <div className="w-full max-w-5xl xl:max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <DocHeader
+              doc={{
+                _id: displayDoc._id as string,
+                title: displayDoc.title,
+                parentId: displayDoc.parentId as string | null ?? null,
+                icon: displayDoc.icon ?? null,
+                tagIds: displayDoc.tagIds,
+                status: displayDoc.status as 'draft' | 'in_review' | 'final' | undefined,
+                ownerId: displayDoc.ownerId ?? '',
+                orgId: displayDoc.orgId ?? undefined,
+                currentVersionString: displayDoc.currentVersionString ?? 'v1.0',
+              }}
+              isSaving={isSaving}
+              showThreads={showThreads}
+              onToggleThreads={handleToggleThreads}
+              threadCount={threadCount?.open ?? 0}
+            />
+            <TipTapEditor
+              docId={displayDoc._id as string}
+              docTitle={displayDoc.title}
+              content={displayDoc.content ?? ''}
+              versionString={displayDoc.currentVersionString ?? 'v1.0'}
+              onSavingChange={setIsSaving}
+              scrollToPosition={flagFrom && flagTo ? { from: parseInt(flagFrom), to: parseInt(flagTo) } : undefined}
+              showThreads={showThreads}
+              onToggleThreads={handleToggleThreads}
+              threadCount={threadCount?.open ?? 0}
+            />
+          </div>
         </div>
+
+        {/* AI Chat Panel - right side split view */}
+        {showAI && (
+          <div className="w-[400px] flex-shrink-0 border-l border-border h-[calc(100vh-64px)] sticky top-0">
+            <AIChatPanel
+              docId={displayDoc._id as Id<'nodes'>}
+              docTitle={displayDoc.title}
+              parentFolderId={displayDoc.parentId as Id<'nodes'> | undefined}
+              isOpen={showAI}
+              onClose={handleToggleAI}
+            />
+          </div>
+        )}
+
+        {/* Floating Ask Disco button */}
+        <AskDiscoButton onClick={handleToggleAI} isOpen={showAI} />
       </div>
     </TocProvider>
   )

@@ -17,7 +17,7 @@ import { MoreVerticalIcon } from "@/components/tiptap-icons/more-vertical-icon"
 
 // --- UI ---
 import { ColorTextPopover } from "@/components/tiptap-ui/color-text-popover"
-import { ImproveDropdown } from "@/components/tiptap-ui/improve-dropdown"
+import { AIInlineMenu } from "@/components/ai"
 import { LinkPopover } from "@/components/tiptap-ui/link-popover"
 import type { Mark } from "@/components/tiptap-ui/mark-button"
 import { canToggleMark, MarkButton } from "@/components/tiptap-ui/mark-button"
@@ -71,7 +71,7 @@ export function NotionToolbarFloating({ docId }: NotionToolbarFloatingProps) {
     <FloatingElement shouldShow={shouldShow}>
       <Toolbar variant="floating">
         <ToolbarGroup>
-          <ImproveDropdown hideWhenUnavailable={true} />
+          <AIInlineMenu hideWhenUnavailable={true} docId={docId} />
         </ToolbarGroup>
 
         <ToolbarSeparator />

@@ -631,4 +631,61 @@ export default defineSchema({
     .index("by_token", ["token"])
     .index("by_org", ["orgId"])
     .index("by_active", ["isActive"]),
+
+  // AI Chat conversations - persisted chat sessions with Disco
+  aiChats: defineTable({
+    // Owner of this chat
+    userId: v.string(),
+
+    // Organization context (optional - personal chats have no org)
+    orgId: v.optional(v.string()),
+
+    // Chat title (auto-generated from first message or user-set)
+    title: v.string(),
+
+    // Context scope - what documents this chat has access to
+    contextType: v.union(
+      v.literal("document"),  // Single document context
+      v.literal("folder"),    // All documents in a folder
+      v.literal("custom")     // User-selected documents
+    ),
+
+    // Context references
+    documentId: v.optional(v.id("nodes")),   // For document context
+    folderId: v.optional(v.id("nodes")),     // For folder context
+    customDocIds: v.optional(v.array(v.id("nodes"))), // For custom selection
+
+    // Context titles (denormalized for display)
+    documentTitle: v.optional(v.string()),
+    folderTitle: v.optional(v.string()),
+
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.number(),
+
+    // Soft delete / archive
+    isArchived: v.optional(v.boolean()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_updated", ["userId", "updatedAt"])
+    .index("by_document", ["documentId"])
+    .index("by_folder", ["folderId"])
+    .index("by_org", ["orgId"]),
+
+  // AI Chat messages - individual messages within a chat
+  aiChatMessages: defineTable({
+    // Parent chat
+    chatId: v.id("aiChats"),
+
+    // Message role
+    role: v.union(v.literal("user"), v.literal("assistant")),
+
+    // Message content
+    content: v.string(),
+
+    // Timestamp
+    createdAt: v.number(),
+  })
+    .index("by_chat", ["chatId"])
+    .index("by_chat_created", ["chatId", "createdAt"]),
 });

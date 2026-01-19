@@ -1,5 +1,7 @@
 @import '../styles/_variables.scss';
 @import '../styles/_keyframe-animations.scss';
+@import '../components/threads/thread-styles.scss';
+@import '../components/ai/ai-styles.scss';
 
 @tailwind base;
 @tailwind components;

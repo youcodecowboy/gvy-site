@@ -9,6 +9,8 @@
  */
 
 import type * as activity from "../activity.js";
+import type * as ai from "../ai.js";
+import type * as aiChats from "../aiChats.js";
 import type * as comments from "../comments.js";
 import type * as dashboard from "../dashboard.js";
 import type * as exports from "../exports.js";
@@ -37,6 +39,8 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   activity: typeof activity;
+  ai: typeof ai;
+  aiChats: typeof aiChats;
   comments: typeof comments;
   dashboard: typeof dashboard;
   exports: typeof exports;
