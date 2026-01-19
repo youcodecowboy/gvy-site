@@ -345,6 +345,11 @@ function TipTapEditorInner({
   const [isCloudEmpty, setIsCloudEmpty] = useState(false)
   const [pendingScrollPosition, setPendingScrollPosition] = useState<{ from: number; to: number } | null>(null)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // PERFORMANCE: Deferred collaboration loading
+  // Editor loads instantly with content from Convex, collaboration enables after delay
+  const [collaborationEnabled, setCollaborationEnabled] = useState(false)
+  const collaborationDelayRef = useRef<NodeJS.Timeout | null>(null)
   
   // Use refs for values accessed in callbacks to prevent editor recreation
   const docIdRef = useRef(docId)
@@ -371,19 +376,55 @@ function TipTapEditorInner({
     createMentionsRef.current = createMentions
   }, [docId, docTitle, user, onSavingChange, updateContent, createMentions])
 
-  // Create Yjs document
-  const ydoc = useMemo(() => new YDoc(), [])
-  
-  // Create collaboration provider
+  // PERFORMANCE: Enable collaboration after content is displayed
+  // This gives instant content loading, then collaboration kicks in
+  useEffect(() => {
+    // Clear any existing timeout
+    if (collaborationDelayRef.current) {
+      clearTimeout(collaborationDelayRef.current)
+    }
+
+    // Reset collaboration state when document changes
+    setCollaborationEnabled(false)
+    setIsSynced(false)
+    setIsCloudEmpty(false)
+
+    // Enable collaboration after a short delay (content will be visible first)
+    collaborationDelayRef.current = setTimeout(() => {
+      console.log('Enabling collaboration features...')
+      setCollaborationEnabled(true)
+    }, 100) // Small delay to ensure content renders first
+
+    return () => {
+      if (collaborationDelayRef.current) {
+        clearTimeout(collaborationDelayRef.current)
+      }
+    }
+  }, [docId])
+
+  // Create Yjs document - only when collaboration is enabled
+  const ydoc = useMemo(() => {
+    if (!collaborationEnabled) return null
+    return new YDoc()
+  }, [collaborationEnabled])
+
+  // Create collaboration provider - only after collaborationEnabled is true
+  // This ensures content displays instantly, then collaboration loads
   const provider = useMemo(() => {
-    if (!collabToken || !TIPTAP_COLLAB_APP_ID) {
-      console.log('Collaboration disabled - no token or app ID')
+    // PERFORMANCE: Don't create provider until collaboration is enabled
+    if (!collaborationEnabled) {
+      console.log('Collaboration deferred - loading content first')
       return null
     }
-    
+
+    if (!collabToken || !TIPTAP_COLLAB_APP_ID || !ydoc) {
+      console.log('Collaboration disabled - no token, app ID, or ydoc')
+      return null
+    }
+
     const documentName = `${TIPTAP_COLLAB_DOC_PREFIX}${docId}`
     console.log('Creating collaboration provider for:', documentName)
-    
+
     const newProvider = new TiptapCollabProvider({
       name: documentName,
       appId: TIPTAP_COLLAB_APP_ID,
@@ -404,9 +445,9 @@ function TipTapEditorInner({
         }
       },
     })
-    
+
     return newProvider
-  }, [collabToken, docId, ydoc])
+  }, [collaborationEnabled, collabToken, docId, ydoc])
 
 
   // Handle provider events
