@@ -376,7 +376,7 @@ export async function POST(request: NextRequest) {
 
     const browser = await puppeteer.launch({
       args: [...chromium.args, '--disable-gpu', '--disable-dev-shm-usage'],
-      defaultViewport: chromium.defaultViewport,
+      defaultViewport: { width: 1280, height: 720 },
       executablePath,
       headless: true,
     });
