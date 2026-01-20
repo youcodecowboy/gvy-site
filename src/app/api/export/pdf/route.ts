@@ -5,7 +5,13 @@ import chromium from '@sparticuz/chromium';
 import * as fs from 'fs';
 import * as path from 'path';
 
-export const maxDuration = 30; // 30 second timeout for serverless
+// Vercel serverless config
+export const maxDuration = 60; // 60 second timeout
+export const dynamic = 'force-dynamic';
+
+// Configure chromium for serverless environment
+chromium.setHeadlessMode = true;
+chromium.setGraphicsMode = false;
 
 interface ExportOptions {
   showVersion?: boolean;
@@ -370,11 +376,13 @@ export async function POST(request: NextRequest) {
     `;
 
     // Launch puppeteer with serverless-compatible chromium
+    const executablePath = await chromium.executablePath();
+
     const browser = await puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
+      executablePath,
+      headless: true,
     });
 
     const page = await browser.newPage();
