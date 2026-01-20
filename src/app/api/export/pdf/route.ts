@@ -9,10 +9,6 @@ import * as path from 'path';
 export const maxDuration = 60; // 60 second timeout
 export const dynamic = 'force-dynamic';
 
-// Configure chromium for serverless environment
-chromium.setHeadlessMode = true;
-chromium.setGraphicsMode = false;
-
 interface ExportOptions {
   showVersion?: boolean;
   versionString?: string;
@@ -379,7 +375,7 @@ export async function POST(request: NextRequest) {
     const executablePath = await chromium.executablePath();
 
     const browser = await puppeteer.launch({
-      args: chromium.args,
+      args: [...chromium.args, '--disable-gpu', '--disable-dev-shm-usage'],
       defaultViewport: chromium.defaultViewport,
       executablePath,
       headless: true,
