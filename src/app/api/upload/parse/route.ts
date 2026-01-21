@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { del } from '@vercel/blob'
 import {
   parseDocx,
   parseMarkdown,
@@ -13,16 +14,27 @@ export const runtime = 'nodejs'
 export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
-  try {
-    const formData = await request.formData()
-    const file = formData.get('file') as File | null
+  let blobUrl: string | null = null
 
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+  try {
+    const body = await request.json()
+    const { url, filename, size } = body as {
+      url: string
+      filename: string
+      size: number
     }
 
+    if (!url || !filename) {
+      return NextResponse.json(
+        { error: 'Missing url or filename' },
+        { status: 400 }
+      )
+    }
+
+    blobUrl = url
+
     // Validate file size
-    if (file.size > MAX_FILE_SIZE) {
+    if (size > MAX_FILE_SIZE) {
       return NextResponse.json(
         {
           error: `File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB`,
@@ -32,7 +44,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get file extension
-    const extension = getExtensionFromFilename(file.name)
+    const extension = getExtensionFromFilename(filename)
 
     if (!extension) {
       return NextResponse.json(
@@ -55,8 +67,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Read file buffer
-    const arrayBuffer = await file.arrayBuffer()
+    // Download file from blob storage
+    const blobResponse = await fetch(url)
+    if (!blobResponse.ok) {
+      throw new Error('Failed to download file from storage')
+    }
+
+    const arrayBuffer = await blobResponse.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
     let result: { html: string; title: string; wordCount: number }
@@ -80,17 +97,32 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Unsupported file type' }, { status: 400 })
     }
 
+    // Clean up the blob after successful processing
+    try {
+      await del(url)
+    } catch (delError) {
+      console.warn('Failed to delete blob:', delError)
+    }
+
     return NextResponse.json({
       html: result.html,
       metadata: {
         title: result.title,
         wordCount: result.wordCount,
-        originalFileName: file.name,
-        fileSize: file.size,
+        originalFileName: filename,
+        fileSize: size,
         fileType: extension,
       },
     })
   } catch (error) {
+    // Try to clean up blob on error too
+    if (blobUrl) {
+      try {
+        await del(blobUrl)
+      } catch (delError) {
+        console.warn('Failed to delete blob on error:', delError)
+      }
+    }
     console.error('Error parsing file:', error)
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack')
 

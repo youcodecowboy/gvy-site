@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react'
 import { useMutation } from 'convex/react'
+import { upload } from '@vercel/blob/client'
 import { api } from '../../convex/_generated/api'
 import { Id } from '../../convex/_generated/dataModel'
 import { useToast } from '@/components/ui/ToastProvider'
@@ -13,7 +14,7 @@ import {
   getExtensionFromFilename,
 } from '@/lib/document-parsers'
 
-export type UploadStatus = 'pending' | 'parsing' | 'creating' | 'success' | 'error'
+export type UploadStatus = 'pending' | 'uploading' | 'parsing' | 'creating' | 'success' | 'error'
 
 export interface UploadingFile {
   id: string
@@ -56,7 +57,7 @@ export function useDocumentUpload(
   const { toast } = useToast()
 
   const isUploading = files.some(
-    (f) => f.status === 'pending' || f.status === 'parsing' || f.status === 'creating'
+    (f) => f.status === 'pending' || f.status === 'uploading' || f.status === 'parsing' || f.status === 'creating'
   )
 
   const totalProgress = files.length
@@ -100,15 +101,27 @@ export function useDocumentUpload(
           )
         }
 
-        // Step 1: Parse file
-        updateFile(id, { status: 'parsing', progress: 20 })
+        // Step 1: Upload to blob storage
+        updateFile(id, { status: 'uploading', progress: 10 })
 
-        const formData = new FormData()
-        formData.append('file', file)
+        const blob = await upload(file.name, file, {
+          access: 'public',
+          handleUploadUrl: '/api/upload/blob',
+        })
+
+        updateFile(id, { progress: 40 })
+
+        // Step 2: Parse file via blob URL
+        updateFile(id, { status: 'parsing', progress: 50 })
 
         const response = await fetch('/api/upload/parse', {
           method: 'POST',
-          body: formData,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: blob.url,
+            filename: file.name,
+            size: file.size,
+          }),
           signal: abortController.signal,
         })
 
@@ -118,14 +131,14 @@ export function useDocumentUpload(
         }
 
         const { html, metadata } = await response.json()
-        updateFile(id, { progress: 60 })
+        updateFile(id, { progress: 70 })
 
-        // Step 2: Convert HTML to TipTap JSON
+        // Step 3: Convert HTML to TipTap JSON
         const tiptapContent = htmlToTiptapJSON(html)
         const validContent = ensureNonEmptyDoc(tiptapContent)
-        updateFile(id, { progress: 80 })
+        updateFile(id, { progress: 85 })
 
-        // Step 3: Create document with content
+        // Step 4: Create document with content
         updateFile(id, { status: 'creating', progress: 90 })
 
         const docId = await createWithContent({
