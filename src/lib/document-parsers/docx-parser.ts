@@ -6,6 +6,12 @@ export interface ParseResult {
   wordCount: number
 }
 
+// DOCX files are ZIP archives - check for ZIP magic bytes (PK\x03\x04)
+function isValidDocxSignature(buffer: Buffer): boolean {
+  if (buffer.length < 4) return false
+  return buffer[0] === 0x50 && buffer[1] === 0x4b && buffer[2] === 0x03 && buffer[3] === 0x04
+}
+
 function extractTitle(html: string): string {
   // Try to extract title from first heading
   const h1Match = html.match(/<h1[^>]*>([^<]+)<\/h1>/i)
@@ -35,6 +41,14 @@ function countWords(html: string): number {
 }
 
 export async function parseDocx(buffer: Buffer): Promise<ParseResult> {
+  // Validate that this is actually a DOCX file (ZIP archive)
+  if (!isValidDocxSignature(buffer)) {
+    throw new Error(
+      'Invalid DOCX file. The file may be corrupted or is not a valid Word document. ' +
+      'Please ensure you are uploading a .docx file created with Microsoft Word or compatible software.'
+    )
+  }
+
   const result = await mammoth.convertToHtml(
     { buffer },
     {

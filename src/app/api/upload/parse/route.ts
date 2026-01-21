@@ -96,19 +96,45 @@ export async function POST(request: NextRequest) {
 
     // Handle specific error types
     if (error instanceof Error) {
-      if (error.message.includes('password')) {
+      const message = error.message.toLowerCase()
+
+      if (message.includes('password')) {
         return NextResponse.json(
           { error: 'Password-protected files are not supported' },
           { status: 400 }
         )
       }
-      if (error.message.includes('corrupt') || error.message.includes('invalid')) {
+
+      // Handle our custom validation error (from magic byte check)
+      if (message.includes('invalid docx file')) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 400 }
+        )
+      }
+
+      // Handle common mammoth/ZIP parsing errors
+      if (
+        message.includes('end of central directory') ||
+        message.includes('not a valid zip') ||
+        message.includes('invalid zip')
+      ) {
+        return NextResponse.json(
+          {
+            error: 'This file is not a valid DOCX document. It may have been renamed from another format. Please upload a genuine .docx file.'
+          },
+          { status: 400 }
+        )
+      }
+
+      if (message.includes('corrupt') || message.includes('invalid')) {
         return NextResponse.json(
           { error: 'The file appears to be corrupted or invalid' },
           { status: 400 }
         )
       }
-      // Return the actual error message for debugging
+
+      // Return user-friendly error with debugging info
       return NextResponse.json(
         { error: `Failed to parse file: ${error.message}` },
         { status: 500 }
