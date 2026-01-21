@@ -61,7 +61,15 @@ export async function parseDocx(buffer: Buffer): Promise<ParseResult> {
         "r[style-name='Strong'] => strong",
         "r[style-name='Emphasis'] => em",
       ],
-      // Images are skipped by default when no image handler is provided
+      // Convert embedded images to base64 data URLs
+      convertImage: mammoth.images.imgElement(async (image) => {
+        const imageBuffer = await image.read()
+        const base64 = imageBuffer.toString('base64')
+        const contentType = image.contentType || 'image/png'
+        return {
+          src: `data:${contentType};base64,${base64}`,
+        }
+      }),
     }
   )
 

@@ -12,6 +12,7 @@ import { Superscript } from '@tiptap/extension-superscript'
 import { Subscript } from '@tiptap/extension-subscript'
 import { Underline } from '@tiptap/extension-underline'
 import { Link } from '@tiptap/extension-link'
+import { Image } from '@tiptap/extension-image'
 
 /**
  * Converts HTML to TipTap-compatible JSON format.
@@ -37,15 +38,23 @@ export function htmlToTiptapJSON(html: string): JSONContent {
     Subscript,
     Underline,
     Link.configure({ openOnClick: false }),
+    Image.configure({
+      inline: false,
+      allowBase64: true,
+    }),
   ]
 
   // Wrap in a div if the HTML doesn't start with a block element
-  const wrappedHtml = html.trim().startsWith('<')
-    ? html
-    : `<p>${html}</p>`
+  let processedHtml = html.trim().startsWith('<') ? html : `<p>${html}</p>`
+
+  // Unwrap images from paragraphs - mammoth generates <p><img></p> but TipTap
+  // needs block-level images outside of paragraphs.
+  // This regex handles paragraphs that ONLY contain an image (with optional whitespace)
+  processedHtml = processedHtml.replace(/<p>(\s*)<img /gi, '<img ')
+  processedHtml = processedHtml.replace(/(<img[^>]*>)(\s*)<\/p>/gi, '$1')
 
   try {
-    return generateJSON(wrappedHtml, extensions)
+    return generateJSON(processedHtml, extensions)
   } catch (error) {
     console.error('Error converting HTML to TipTap JSON:', error)
     // Return a simple paragraph with the raw text as fallback
